@@ -6,6 +6,8 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quizquest/cloud_progress.dart';
+import 'package:quizquest/google_auth.dart';
+import 'package:quizquest/backend_config.dart';
 
 const userA = '11111111-1111-4111-8111-111111111111';
 const userB = '22222222-2222-4222-8222-222222222222';
@@ -32,6 +34,109 @@ Future<void> session(SupabaseClient client, String id) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('Google profile fills name and email but preserves edited fields', () {
+    final user = User.fromJson({
+      'id': userA,
+      'aud': 'authenticated',
+      'email': 'Coder@gmail.com',
+      'app_metadata': {'provider': 'google'},
+      'user_metadata': {'full_name': 'Google Coder'},
+      'created_at': '2026-01-01T00:00:00Z'
+    })!;
+    expect(GoogleAuth.profileDefaults(user),
+        {'profileName': 'Google Coder', 'profileEmail': 'coder@gmail.com'});
+    expect(
+        GoogleAuth.profileDefaults(user,
+            name: 'My chosen name', email: 'contact@gmail.com'),
+        isEmpty);
+    expect(GoogleAuth.profileDefaults(user, name: 'My chosen name'),
+        {'profileEmail': 'coder@gmail.com'});
+    final emailUser = User.fromJson({
+      'id': userA,
+      'aud': 'authenticated',
+      'email': 'coder@gmail.com',
+      'app_metadata': {'provider': 'email'},
+      'user_metadata': {'full_name': 'Unrelated'},
+      'created_at': '2026-01-01T00:00:00Z'
+    })!;
+    expect(GoogleAuth.profileDefaults(emailUser), isEmpty);
+  });
+  test('Google setup check prevents browser launch while provider is disabled',
+      () async {
+    final client = SupabaseClient('https://example.supabase.co', 'public-test',
+        authOptions: const AuthClientOptions(autoRefreshToken: false));
+    addTearDown(client.dispose);
+    var launched = false;
+    final transport = MockClient(
+        (r) async => http.Response('{"external":{"google":false}}', 200));
+    await expectLater(
+        GoogleAuth.start(client, settingsClient: transport, launch: () async {
+          launched = true;
+          return true;
+        }),
+        throwsA(isA<AuthException>()));
+    expect(launched, false);
+    transport.close();
+  });
+  test('Google launch uses provider settings without creating a fake session',
+      () async {
+    final client = SupabaseClient('https://example.supabase.co', 'public-test',
+        authOptions: const AuthClientOptions(autoRefreshToken: false));
+    addTearDown(client.dispose);
+    final transport = MockClient((r) async {
+      expect(r.url.path, '/auth/v1/settings');
+      expect(r.headers['apikey'], BackendConfig.publishableKey);
+      return http.Response('{"external":{"google":true}}', 200);
+    });
+    expect(
+        await GoogleAuth.start(client,
+            settingsClient: transport, launch: () async => true),
+        true);
+    expect(client.auth.currentSession, null);
+    transport.close();
+    final link = Uri.parse(BackendConfig.mobileCallback);
+    expect(link.scheme, 'com.learncodz.app');
+    expect(link.host, 'login-callback');
+  });
+  testWidgets('OAuth auth event restores progress once before opening the app',
+      (tester) async {
+    final prefs = (await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      return SharedPreferences.getInstance();
+    }))!;
+    var reads = 0;
+    final client = (await tester.runAsync(() async => SupabaseClient(
+            'https://example.supabase.co', 'public-test',
+            authOptions: const AuthClientOptions(autoRefreshToken: false),
+            httpClient: MockClient((r) async {
+          reads++;
+          return http.Response(
+              '[{"revision":3,"state":{"profileName":"Google learner"}}]', 200,
+              request: r, headers: {'content-type': 'application/json'});
+        }))))!;
+    final cloud = CloudProgress(prefs, client);
+    CloudProgress.instance = cloud;
+    await tester.pumpWidget(MaterialApp(
+        home: CloudGate(
+            child: () => const Scaffold(body: Text('Signed in home')))));
+    await tester.pumpAndSettle();
+    expect(find.text('Continue with Google'), findsOneWidget);
+    await tester.runAsync(() => session(client, userA));
+    for (var i = 0; i < 100 && !cloud.ready; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+    }
+    expect(cloud.ready, true);
+    await tester.pumpAndSettle();
+    expect(find.text('Signed in home'), findsOneWidget);
+    expect(prefs.getString('profileName'), 'Google learner');
+    expect(reads, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    cloud.dispose();
+    CloudProgress.instance = null;
+    await tester.runAsync(client.dispose);
+  });
   test('Backup rejects malformed types before altering local data', () {
     expect(() => ProgressSnapshot.validate({'avatar': 'wrong'}),
         throwsFormatException);
@@ -204,5 +309,44 @@ void main() {
     await cloud.prepare();
     expect(cloud.conflict, true);
     expect(cloud.revision, 2);
+  });
+  testWidgets(
+      'Rounded logout keeps confirmation and signs out only after continue',
+      (tester) async {
+    final pair = (await tester.runAsync(() => setup(
+        {'cloud.owner': userA, 'profileName': 'Learner'},
+        (request) async => http.Response('[]', 200,
+            headers: {'content-type': 'application/json'},
+            request: request))))!;
+    final cloud = pair.$1;
+    CloudProgress.instance = cloud;
+    cloud.ready = true;
+    addTearDown(() => CloudProgress.instance = null);
+    await tester.pumpWidget(const MaterialApp(
+        home:
+            Scaffold(body: SingleChildScrollView(child: CloudAccountCard()))));
+    await tester.pumpAndSettle();
+    expect(find.text('Logout'), findsOneWidget);
+    expect(
+        find.byWidgetPredicate(
+            (widget) => widget is FilledButton && widget.onPressed != null),
+        findsOneWidget);
+    await tester.tap(find.text('Logout'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign out?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(cloud.uid, userA);
+    await tester.tap(find.text('Logout'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    for (var i = 0; i < 100 && cloud.uid != null; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+    }
+    expect(cloud.uid, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
   });
 }

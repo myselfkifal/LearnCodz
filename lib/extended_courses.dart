@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'lessons.dart';
+import 'bonus_quizzes.dart';
 import 'language_courses.dart';
 
 List<Lesson> extendedCourse(StudyLanguage lang) {
@@ -23,7 +24,8 @@ List<Lesson> extendedCourse(StudyLanguage lang) {
           List<Question> hard) =>
       Lesson('${lang.name}:$id', '$name · $title', intro, 5, icon, text, code,
           easy,
-          challengeQuestions: hard);
+          challengeQuestions: hard,
+          practiceQuestions: bonusQuizQuestions(lang, id));
   final read = py
       ? 'age = int(input("Your age: "))\nprint(age)'
       : java

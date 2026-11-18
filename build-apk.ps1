@@ -17,5 +17,5 @@ try {
 }
 $apkPath = Join-Path $PSScriptRoot 'build\app\outputs\apk\release\app-release.apk'
 New-Item -ItemType Directory -Path (Join-Path $PSScriptRoot 'deliverables') -Force | Out-Null
-Copy-Item -LiteralPath $apkPath -Destination (Join-Path $PSScriptRoot 'deliverables\LearnCodz-v1.0.3.apk') -Force
-Write-Output 'APK: D:\QuizQuest\deliverables\LearnCodz-v1.0.3.apk'
+Copy-Item -LiteralPath $apkPath -Destination (Join-Path $PSScriptRoot 'deliverables\LearnCodz-v1.0.11.apk') -Force
+Write-Output 'APK: D:\QuizQuest\deliverables\LearnCodz-v1.0.11.apk'

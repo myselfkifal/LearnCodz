@@ -1,6 +1,18 @@
 # LearnCodz
 
-A playful, single-user Flutter programming tutor by **Zulkifal Khan & Jamal Khan**.
+## Current release: 1.0.11 (build 12)
+
+Includes an immediate startup screen while storage and authentication initialize, removal of the second timed splash, an Android launch logo, and deliberate pull-to-refresh gestures that ignore accidental touches. Also includes the redesigned learning screens, coding missions, smart review, achievements, bundled animations and expanded quizzes.
+
+Validation: Android release build and APK signature/package/asset checks passed; 21 startup, account and mission tests passed; code analysis reported no issues. Physical phone startup timing still needs device testing. APKs and local caches are excluded from this source repository.
+
+A playful, single-user Flutter programming tutor by **Zulkifal Khan & Jamal Akbar Khan**.
+
+## November 3 design update
+
+The home screen now has a personal greeting, a continue-learning card, daily goals and medal previews. Practice uses a responsive colored card grid. The Learning Room has an original code illustration, section icons and mini tasks; the quiz mode picker uses a bottom sheet. Profile has its own overview and separate editing route. Progress shows five mastery topics initially, with See All for the complete list.
+
+There are 22 achievement medals with progress indicators and All / Unlocked filters. Medals derive from existing saved learning data, including XP, perfect lessons, historical streaks, bookmarks, study time, challenges and languages learned. No new account or database setup is required for the design update. No APK was built for this update; use Chrome during development.
 
 ## Run on this PC
 
@@ -17,7 +29,7 @@ An animated QuizQuest logo and original cartoon buddy welcome you. Choose C++, P
 
 ## Courses and activities
 
-Each language has six beginner chapters: Hello World, variables, decisions, loops, functions and lists/arrays. Lessons explain how to run the first full program, include short examples, and give mini tasks. Later snippets identify where statements belong. Each chapter has three Easy questions and three separate Difficult questions: 24 lessons and 144 question variants across four languages.
+Each language has 18 chapters across three stages, starting with: Hello World, variables, decisions, loops, functions and lists/arrays. Lessons explain how to run the first full program, include short examples, and give mini tasks. Later snippets identify where statements belong. Each chapter has three Easy questions and three separate Difficult questions: 72 lessons and 720 course question variants across four languages, plus 32 coding lab activities.
 
 The language-specific Coding lab adds eight exercises per language (32 total), covering Output Detective, Fill the Gap, Code Shuffle and Bug Hunt. Reorder with drag handles or accessible up/down buttons. Code examples are educational; the app does not execute arbitrary user code.
 
@@ -33,7 +45,7 @@ Finite entrance bounces, tactile buttons, smooth progress, answer pops/shakes, c
 
 ## Profile and credits
 
-Use Edit profile to save a name, @gmail.com address and one of four original cartoon buddies. This is a device-local profile, not Google login or email verification. Developer credits appear on the splash and profile screens: Zulkifal Khan & Jamal Khan.
+Use Edit profile to save a name, @gmail.com address and one of four original cartoon buddies. This is a device-local profile, not Google login or email verification. Developer credits appear on the splash and profile screens: Zulkifal Khan & Jamal Akbar Khan.
 
 ## Mistake practice
 
@@ -130,3 +142,100 @@ The current management connector is signed into a different Supabase account.
 
 Before Play Store release, add account deletion, password recovery and production
 signing, and verify database grants/RLS with two real accounts.
+
+## Google sign-in - 1.0.4 (5)
+
+The sign-in screen now includes Continue with Google. Supabase opens an external
+browser on Android, then handles the PKCE callback through app_links. Android
+registers com.learncodz.app://login-callback/ and opts out of Flutter's competing
+default deep-link handler. CloudGate waits for a real Auth session event and
+prepares/restores the account before showing the learning screens. Email/password
+login continues to work. Browser launch success is not a successful login.
+
+Enable the Google provider and configure the Web OAuth client and redirect URLs
+using supabase/GOOGLE-SIGN-IN-SETUP.md. Client secrets belong only in Supabase.
+A public settings check gives a clear message while the provider is disabled.
+Real Google login remains unverified until the owner completes provider setup.
+
+
+## Profile cleanup - 1.0.5 (6)
+
+Google sign-in seeds missing profile name and email from the authenticated Google
+account after existing cloud progress loads. Edited profile fields are preserved,
+and new defaults are uploaded to the same private backup. Google metadata is used
+for display only; database authorization continues to use the Supabase user ID.
+Overview now has no edit-profile shortcut. Profile editing remains in Profile.
+
+
+## Sign-in icons and motion - 1.0.6 (7)
+
+Google sign-in uses the official Google G image; Name, Email and Password fields
+have matching person, envelope and lock icons. The password eye toggle remains.
+Sign-in and Profile enter with finite fade/slide/scale motion, buttons have press
+feedback, and sign-in has a loading transition. Device reduced-motion settings
+disable entrance/press movement and replace the loading spinner with a static icon.
+Name personalizes the profile; Google fills missing name/email automatically.
+Email/password is an alternative sign-in method, not required for Google sign-in.
+
+
+## Quiz Arcade, sound refresh and reminders - 1.0.7 (8)
+
+- Four new questions per chapter across the four languages: 288 additional
+  questions, 720 course question variants in total (plus the coding labs).
+- Practice > Quiz Arcade: choose an unlocked chapter and a 5/10-question round.
+  Save a completed round to claim 10 XP per newly correct question. Repeat answers
+  do not pay twice. Reward IDs persist locally and in Supabase backups. Original
+  three-question lesson scores and roadmap unlocks are unchanged.
+- Original soft keyboard/chime audio replaces the previous WAV files. Profile
+  offers previews for Tap, Correct, Retry, Lesson done and XP reward.
+- Google/person/email/lock icons and sign-in/Profile entrance, press and loading
+  effects are included; reduced-motion settings are respected.
+- Android reminders use a high-importance channel, explicit permission checks,
+  queued-schedule verification, and a notification-settings shortcut. Release
+  shrinking now applies the notification/Gson keep rules. No exact-alarm access,
+  full-screen alarm or Firebase setup is required for these local reminders.
+- Normal reminder UI stays simple. Diagnostics/test/settings are collapsed under
+  Having trouble?; there is no keep-the-app-open instruction in the Android flow.
+
+Verification: 52 tests passed (one opt-in live compiler test skipped), analysis
+clean, with a separate phone-sized Arcade reward/anti-duplication test. Notification
+tests simulate Android plugin channels; physical phone delivery still needs testing.
+OS notification permissions, DND and battery restrictions can affect delivery.
+
+## Smart Review and answer feedback
+
+Practice now includes Smart Review. Saved course answers schedule topic reviews at 1, 3, 7, 14 and 30 days when a round reaches 80% accuracy. Weaker rounds return the next day. Same-day repeats do not advance the spacing level. Existing studied topics without a review date appear as due. Reviews are untimed, prioritize saved mistakes, and award no extra XP or chapter unlocks. Review dates live inside existing topic mastery data and use the existing progress backup.
+
+Answer feedback compares the selected answer with the correct answer or code order, followed by the authored question explanation. Feedback is available for all course and practice questions. Each new question opens at the top.
+
+## Navigation cleanup
+
+Daily Challenge has one entry under Overview → Daily Goal. Practice contains Smart Review, Quiz Arcade, Code Playground and focused coding activities. The learning toolkit contains goals, bookmarks, mastery and reminder controls; its duplicate coding-lab launcher was removed.
+
+Profile → Edit Profile changes personal details and the learning buddy. Profile → App Settings manages the existing account/backup controls, sound preferences, reminder access and Reset my progress. Reset is no longer on Progress. Reset still requires confirmation and clears learning progress while keeping profile details.
+
+## Guided coding missions and lesson sandbox
+
+Practice → Coding Missions offers three beginner missions in each of C++, Python, Java and C: doubling a number, a pass-score checker, and an even/odd detector. Each mission has a three-step brief, expandable hints and three executable test cases. Check all test cases sends the current code and each test input to the existing online compiler. Completion is recorded only when every response succeeds and the actual output matches the expected output (line endings and outer whitespace are normalized). Editing code clears the displayed test results. Mission completions are practice records, with no extra XP.
+
+Learning Room → Try this code opens the lesson example in a separate sandbox draft; regular Playground work is preserved. Function and recursion examples include a demonstration entry point for C, C++ and Java. Mission and lesson drafts, mission completions, and seen achievement notifications participate in the existing progress backup. There is no database schema change.
+
+Compiler failures include a rule-based explanation alongside raw diagnostics. Highlight line is offered only when a line can be mapped to the user's source; hints are suggestions, not guaranteed fixes. New achievement notifications are animated, nonblocking and deduplicated for saved milestones. Developer credits appear only in App Settings → About developers.
+
+## Focused screens
+
+Profile includes identity, a course progress ring with XP/level/streak stats, editing and settings navigation. Course completion and detailed topic mastery appear in Progress, including coding-lab accuracy when there are saved lab attempts. The toolkit focuses on daily goals, bookmarks and reminders. The extra toolkit shortcut on Progress was removed. The full generated compiler program remains available under the collapsed Advanced: full program section.
+
+## Animated navigation and refresh
+
+The five main tabs use a curved bottom bar with a raised active icon in LearnCodz green. The active indicator slides between tabs and respects reduced-motion preferences. Wide layouts retain their sidebar.
+
+Pull down on the main screens to reveal the learning buddy and refresh header. Short pages can also be pulled. Overview and Profile offer a Refresh progress button for mouse and keyboard users. Refresh saves local study settings and asks the existing backup service to sync when signed in. Cloud conflicts or unavailable service are reported without replacing local progress.
+
+Profile → App Settings → Account & cloud backup now has a full-width Logout button. It retains the existing confirmation and account-specific sign-out behavior. This source update does not rebuild or replace the APK.
+
+## Offline Lottie animations
+
+LearnCodz bundles three unmodified Animated Noto Emoji Lottie files by Google (CC BY 4.0): fire for the web-only daily streak popup, a growing seedling while refreshing, and a party popper for saved achievements, quiz results and completed coding missions. The Lottie player is pinned to 3.2.0 for Flutter 3.27 compatibility. Artwork plays from local assets, at 30 fps, with static symbols when reduced motion is enabled. Refresh loops are mounted only while refreshing; celebrations play once.
+
+Replay the effects in Profile → App Settings → Animation credits → Preview animations. Attribution, source URLs, downloaded file hashes and the full license are stored in assets/animations. Open-source licenses are accessible from the same Settings section.

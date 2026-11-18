@@ -43,6 +43,8 @@ void main() {
         expect(ids.add(lesson.id), isTrue);
         expect(lesson.questions.length, 3);
         expect(lesson.challengeQuestions.length, 3);
+        expect(lesson.practiceQuestions.length, 4);
+        expect(lesson.allQuestions.length, 10);
         for (final q in lesson.allQuestions) {
           expect(q.answer, inInclusiveRange(0, q.options.length - 1));
         }
@@ -106,7 +108,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(prefs.getString('language'), 'python');
     await tester.scrollUntilVisible(
-        find.text('Python · Switch').hitTestable(), -200,
+        find.text('Python · Switch').hitTestable(), 200,
         scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Python · Switch'));
     await tester.pumpAndSettle();

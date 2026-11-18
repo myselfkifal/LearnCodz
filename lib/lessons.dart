@@ -9,25 +9,33 @@ class Question {
   final int answer;
   final String explanation;
   final QuestionKind kind;
-  final String? code;
+  final String? code, imageUrl, imageDescription;
   final List<int> answerOrder;
   const Question(this.prompt, this.options, this.answer, this.explanation,
       {this.kind = QuestionKind.choice,
       this.code,
+      this.imageUrl,
+      this.imageDescription,
       this.answerOrder = const []});
 }
 
 class Lesson {
   final String id, title, subtitle, code;
   final int minutes;
+  final String? imageUrl, imageDescription;
   final IconData icon;
   final List<(String, String)> sections;
   final List<Question> questions;
   final List<Question> challengeQuestions;
-  List<Question> get allQuestions => [...questions, ...challengeQuestions];
+  final List<Question> practiceQuestions;
+  List<Question> get allQuestions =>
+      [...questions, ...challengeQuestions, ...practiceQuestions];
   const Lesson(this.id, this.title, this.subtitle, this.minutes, this.icon,
       this.sections, this.code, this.questions,
-      {this.challengeQuestions = const []});
+      {this.challengeQuestions = const [],
+      this.practiceQuestions = const [],
+      this.imageUrl,
+      this.imageDescription});
 }
 
 List<Lesson> get lessons =>

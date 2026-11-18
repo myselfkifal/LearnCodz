@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'lessons.dart';
 import 'language_courses.dart';
 import 'sound_effects.dart';
+import 'smart_review.dart';
 
 class LearningData extends ChangeNotifier {
   final SharedPreferences prefs;
@@ -55,6 +56,7 @@ class LearningData extends ChangeNotifier {
   }
 
   void record(Map<Question, bool> answers) {
+    final batch = <String, List<bool>>{};
     for (final entry in answers.entries) {
       final topic = lessons
               .where((l) => l.allQuestions.contains(entry.key))
@@ -63,11 +65,19 @@ class LearningData extends ChangeNotifier {
           (activeLanguage == null
               ? 'Coding lab'
               : '${languageName(activeLanguage!)} · Coding lab');
+      (batch[topic] ??= []).add(entry.value);
       final stat = Map<String, dynamic>.from(
           mastery[topic] ?? {'correct': 0, 'attempts': 0});
       stat['attempts'] = (stat['attempts'] as int) + 1;
       if (entry.value) stat['correct'] = (stat['correct'] as int) + 1;
       mastery[topic] = stat;
+    }
+    for (final entry in batch.entries) {
+      mastery[entry.key] = ReviewSchedule.update(
+          Map<String, dynamic>.from(mastery[entry.key]),
+          correct: entry.value.where((v) => v).length,
+          attempts: entry.value.length,
+          now: DateTime.now());
     }
     notifyListeners();
     save();

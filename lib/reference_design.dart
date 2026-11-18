@@ -96,56 +96,118 @@ class _HexPainter extends CustomPainter {
   bool shouldRepaint(_HexPainter old) => color != old.color;
 }
 
+class PracticeArtwork extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const PracticeArtwork({super.key, required this.icon, required this.color});
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(alignment: Alignment.center, children: [
+        Positioned(
+            left: 4,
+            right: 4,
+            top: 5,
+            bottom: 3,
+            child: DecoratedBox(
+                decoration: BoxDecoration(
+                    color: Color.lerp(color, Colors.black, .23),
+                    borderRadius: BorderRadius.circular(15)))),
+        Positioned(
+            left: 4,
+            right: 4,
+            top: 2,
+            bottom: 7,
+            child: DecoratedBox(
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color.lerp(color, Colors.white, .26)!, color]),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: .45))),
+                child: Icon(icon, size: 27, color: Colors.white))),
+        const Positioned(
+            right: 0,
+            top: 0,
+            child:
+                Icon(Icons.auto_awesome, size: 15, color: Color(0xFFFFD46B))),
+      ]));
+}
+
 class PracticeTile extends StatelessWidget {
+  final bool grid, illustrated;
   final String title, subtitle;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
   const PracticeTile(
       {super.key,
+      this.grid = false,
+      this.illustrated = false,
       required this.title,
       required this.subtitle,
       required this.icon,
       required this.color,
       required this.onTap});
   @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
+  Widget build(BuildContext context) => !grid
+      ? Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Material(
+              color: color.withValues(alpha: .07),
               borderRadius: BorderRadius.circular(18),
-              side: const BorderSide(color: Color(0xFFE5E5ED))),
+              child: ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18)),
+                  onTap: onTap,
+                  leading: illustrated
+                      ? PracticeArtwork(icon: icon, color: color)
+                      : Icon(icon, color: color, size: 30),
+                  title: Text(title,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle:
+                      Text(subtitle, style: const TextStyle(fontSize: 12)),
+                  trailing: Icon(Icons.chevron_right, color: color))))
+      : Material(
+          color: color.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(20),
           child: InkWell(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(20),
               onTap: onTap,
               child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    Container(
-                        width: 54,
-                        height: 56,
-                        decoration: BoxDecoration(
-                            color: color.withValues(alpha: .16),
-                            borderRadius: BorderRadius.circular(14)),
-                        child: Icon(icon, color: color, size: 30)),
-                    const SizedBox(width: 14),
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                          Text(title,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w800, fontSize: 15)),
-                          const SizedBox(height: 3),
-                          Text(subtitle,
-                              style: const TextStyle(
-                                  color: Color(0xFF6C6C74),
-                                  fontSize: 12,
-                                  height: 1.4))
-                        ])),
-                    const Icon(Icons.chevron_right, color: Color(0xFF73737B))
-                  ])))));
+                              PracticeArtwork(icon: icon, color: color),
+                              Icon(Icons.arrow_forward_rounded,
+                                  color: color, size: 20)
+                            ]),
+                        const SizedBox(height: 10),
+                        Text(title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                height: 1.2)),
+                        const SizedBox(height: 7),
+                        Text(subtitle,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Color(0xFF62626B),
+                                fontSize: 12,
+                                height: 1.4)),
+                      ]))));
 }
 
 class ProgressSummary extends StatelessWidget {
@@ -165,18 +227,27 @@ class ProgressSummary extends StatelessWidget {
           SizedBox(
               width: 130,
               height: 130,
-              child: Stack(alignment: Alignment.center, children: [
-                SizedBox.expand(
-                    child: CircularProgressIndicator(
-                        value: total == 0 ? 0 : passed / total,
-                        strokeWidth: 12,
-                        strokeCap: StrokeCap.round,
-                        backgroundColor: const Color(0xFFE9E9ED),
-                        color: questLime)),
-                Text('${total == 0 ? 0 : (passed / total * 100).round()}%',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 32))
-              ])),
+              child: TweenAnimationBuilder<double>(
+                  tween: Tween(
+                      begin: 0,
+                      end: total == 0 ? 0 : (passed / total).clamp(0, 1)),
+                  duration: Duration(
+                      milliseconds:
+                          MediaQuery.disableAnimationsOf(context) ? 0 : 1000),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, _) =>
+                      Stack(alignment: Alignment.center, children: [
+                        SizedBox.expand(
+                            child: CircularProgressIndicator(
+                                value: value,
+                                strokeWidth: 12,
+                                strokeCap: StrokeCap.round,
+                                backgroundColor: const Color(0xFFE9E9ED),
+                                color: questLime)),
+                        Text('${(value * 100).round()}%',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 32)),
+                      ]))),
           const SizedBox(height: 16),
           const Text('Course Progress',
               style: TextStyle(fontSize: 12, color: Colors.black54))

@@ -1,0 +1,3 @@
+Google sign-in G icon from https://developers.google.com/identity/sign-in/g-normal.png
+Usage guidance: https://developers.google.com/identity/branding-guidelines
+Google logo belongs to Google LLC.

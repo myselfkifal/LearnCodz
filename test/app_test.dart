@@ -1,8 +1,11 @@
+import 'package:lottie/lottie.dart';
+import 'package:quizquest/lottie_effects.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quizquest/main.dart';
 import 'package:quizquest/lessons.dart';
+import 'package:quizquest/language_courses.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 
@@ -19,6 +22,11 @@ void main() {
         .readAsBytes()
         .then((bytes) => ByteData.sublistView(bytes)));
     await icons.load();
+    for (final effect in QuestAnimation.values) {
+      await AssetLottie('assets/animations/${effect.name}.json',
+              backgroundLoading: false)
+          .load();
+    }
   });
   Future<void> boot(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
@@ -31,6 +39,74 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('Arcade rewards each correct question once and persists XP',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues(
+        {'language': 'cpp', 'autoAdvance': false});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(QuizQuest(skipOnboarding: true, prefs: prefs));
+    await tester.pumpAndSettle();
+    var captured = false;
+    Future<void> playRound() async {
+      await tester.tap(find.text('Practice').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quiz Arcade'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10 questions'));
+      await tester.pumpAndSettle();
+      if (!captured) {
+        await expectLater(find.byType(MaterialApp),
+            matchesGoldenFile('goldens/quiz_arcade_picker_phone.png'));
+      }
+      await tester
+          .tap(find.text(languageCourses[StudyLanguage.cpp]!.first.title));
+      await tester.pumpAndSettle();
+      final questions =
+          tester.widget<QuizPage>(find.byType(QuizPage)).questions;
+      expect(questions.length, 10);
+      for (var i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        final answer = find.text(q.options[q.answer]).last;
+        await tester.scrollUntilVisible(answer.hitTestable(), 150,
+            scrollable: find.byType(Scrollable).first);
+        await tester.tap(answer);
+        await tester.pump();
+        await tester.scrollUntilVisible(
+            find.text('Check answer').hitTestable(), 150,
+            scrollable: find.byType(Scrollable).first);
+        await tester.tap(find.text('Check answer'));
+        await tester.pump();
+        final next = find.text(
+            i == questions.length - 1 ? 'See my results' : 'Next question');
+        await tester.scrollUntilVisible(next.hitTestable(), 150,
+            scrollable: find.byType(Scrollable).first);
+        await tester.tap(next);
+        await tester.pumpAndSettle();
+      }
+      if (!captured) {
+        await expectLater(find.byType(MaterialApp),
+            matchesGoldenFile('goldens/quiz_arcade_result_phone.png'));
+        captured = true;
+      }
+      await tester.scrollUntilVisible(
+          find.text('Save & continue').hitTestable(), 150,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Save & continue'));
+      await tester.pumpAndSettle();
+    }
+
+    await playRound();
+    expect(prefs.getStringList('quizRewards')!.length, 10);
+    expect(prefs.getStringList('seenAchievements'), contains('Arcade Rookie'));
+    await playRound();
+    expect(prefs.getStringList('quizRewards')!.length, 10);
+    await tester.pumpWidget(const SizedBox.shrink());
+    activeLanguage = null;
+  });
   testWidgets('Mobile overview and lesson', (tester) async {
     await boot(tester, const Size(390, 844));
     expect(find.text('LearnCodz'), findsOneWidget);
@@ -38,8 +114,8 @@ void main() {
     await expectLater(find.byType(MaterialApp),
         matchesGoldenFile('goldens/overview_phone.png'));
     await tester.scrollUntilVisible(
-        find.text('Start: Meet your variables').hitTestable(), 200);
-    await tester.tap(find.text('Start: Meet your variables'));
+        find.text('Meet your variables').hitTestable(), 200);
+    await tester.tap(find.text('Meet your variables'));
     await tester.pumpAndSettle();
     expect(find.text('A named container'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -65,14 +141,14 @@ void main() {
     expect(find.text('A named container'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('Toolkit opens with coding, goals, bookmarks and mastery',
+  testWidgets('Toolkit focuses on goals bookmarks and reminders',
       (tester) async {
     await boot(tester, const Size(390, 844));
-    final button = find.text('Learning toolkit · Goals, bookmarks & coding');
+    final button = find.text('Adjust goal');
     await tester.scrollUntilVisible(button.hitTestable(), 200);
     await tester.tap(button);
     await tester.pumpAndSettle();
-    expect(find.text('Make code click'), findsOneWidget);
+    expect(find.text('Open coding lab'), findsNothing);
     expect(find.text('Your daily mission'), findsOneWidget);
     await expectLater(find.byType(MaterialApp),
         matchesGoldenFile('goldens/toolkit_phone.png'));
@@ -80,8 +156,9 @@ void main() {
     await tester.pumpAndSettle();
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getInt('dailyGoal'), 10);
-    await tester.scrollUntilVisible(find.text('Your skill map'), 250);
-    expect(find.text('Your skill map'), findsOneWidget);
+    expect(find.text('Your skill map'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Your pocket library'), 250);
+    expect(find.text('Your pocket library'), findsOneWidget);
   });
   testWidgets('Desktop sidebar', (tester) async {
     await boot(tester, const Size(1366, 950));
@@ -138,16 +215,16 @@ void main() {
     await tester.pumpWidget(QuizQuest(
         skipOnboarding: true, prefs: await SharedPreferences.getInstance()));
     await tester.pumpAndSettle();
-    expect(find.text('Start: Make a decision'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('60 XP'), 200);
-    expect(find.text('60 XP'), findsOneWidget);
+    expect(find.text('Make a decision'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('60'), 200);
+    expect(find.text('60'), findsOneWidget);
   });
   testWidgets('Completing a lesson persists score across app restart',
       (tester) async {
     await boot(tester, const Size(390, 844));
     await tester.scrollUntilVisible(
-        find.text('Start: Meet your variables').hitTestable(), 200);
-    await tester.tap(find.text('Start: Meet your variables'));
+        find.text('Meet your variables').hitTestable(), 200);
+    await tester.tap(find.text('Meet your variables'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Take the quiz'), 400,
         scrollable: find.byType(Scrollable).first);
@@ -179,7 +256,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(QuizQuest(skipOnboarding: true, prefs: prefs));
     await tester.pumpAndSettle();
-    expect(find.text('Start: Make a decision'), findsOneWidget);
+    expect(find.text('Make a decision'), findsOneWidget);
   });
   testWidgets('Practice clears correct answers, retains wrong ones and saves',
       (tester) async {
@@ -194,8 +271,11 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(QuizQuest(skipOnboarding: true, prefs: prefs));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Practice'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-        find.text('Practice mistakes (2)').hitTestable(), 250);
+        find.text('Practice mistakes (2)').hitTestable(), 250,
+        scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Practice mistakes (2)'));
     await tester.pumpAndSettle();
     for (var i = 0; i < 2; i++) {
@@ -221,8 +301,11 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(QuizQuest(skipOnboarding: true, prefs: prefs));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Practice'));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-        find.text('Practice mistakes (1)').hitTestable(), 250);
+        find.text('Practice mistakes (1)').hitTestable(), 250,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Practice mistakes (1)'), findsOneWidget);
   });
   testWidgets('Wrong answer is reported only when completed attempt is saved',
@@ -244,6 +327,9 @@ void main() {
     await tester.scrollUntilVisible(find.text('See my results'), 150);
     await tester.tap(find.text('See my results'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.text('Save & continue').hitTestable(), 150,
+        scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Save & continue'));
     await tester.pumpAndSettle();
     expect(recorded?[lessons.first.questions.first], isFalse);

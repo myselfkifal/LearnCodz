@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'lessons.dart';
+import 'bonus_quizzes.dart';
 import 'extended_courses.dart';
 
 enum StudyLanguage { cpp, python, java, c }
@@ -71,7 +72,8 @@ List<Lesson> buildCourse(StudyLanguage lang) {
           List<Question> hard) =>
       Lesson('${lang.name}:$id', '$name · $title', subtitle, 3, icon, sections,
           code, easy,
-          challengeQuestions: hard);
+          challengeQuestions: hard,
+          practiceQuestions: bonusQuizQuestions(lang, id));
   return [
     lesson(
         'hello',

@@ -46,7 +46,8 @@ void main() {
     expect(restored.goal, 10);
     expect(restored.todaySeconds, 65);
     expect(
-        restored.mastery['Meet your variables'], {'correct': 1, 'attempts': 2});
+        restored.mastery['Meet your variables'], containsPair('attempts', 2));
+    expect(restored.mastery['Meet your variables'], containsPair('correct', 1));
     restored.reset();
     await restored.save();
     expect(LearningData(prefs).bookmarks, isEmpty);

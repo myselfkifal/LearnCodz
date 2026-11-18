@@ -1,0 +1,15 @@
+Animated Noto Emoji
+Copyright Google LLC. Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0).
+Project: https://googlefonts.github.io/noto-emoji-files/?view=docs
+License: https://creativecommons.org/licenses/by/4.0/
+
+The following Lottie files are bundled unmodified. LearnCodz adds surrounding UI and controls playback; the artwork colors are unchanged.
+
+flame.json — https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/lottie.json
+SHA256: 96199d8e8fea7d90196b95b9a9e56b13af43e3817efe037bd9aa1e5215579838
+
+grow.json — https://fonts.gstatic.com/s/e/notoemoji/latest/1f331/lottie.json
+SHA256: 7d5c259025d4e80f24ac8f529b6107f02e2faa6da578729c721b9e73c7f456ce
+
+celebrate.json — https://fonts.gstatic.com/s/e/notoemoji/latest/1f389/lottie.json
+SHA256: eab1fd7070bffd2965c12a80d2d91cff76683af65019f142acf9a553ee877b5c

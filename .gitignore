@@ -56,3 +56,5 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+# Downloaded Google OAuth client secrets
+client_secret_*.json

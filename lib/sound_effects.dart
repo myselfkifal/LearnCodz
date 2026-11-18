@@ -135,15 +135,21 @@ class _SoundSettingsState extends State<SoundSettings> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget build(BuildContext context) => Container(
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(top: 20),
+      decoration: BoxDecoration(
+          color: const Color(0xFFF7F5FC),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFECE6F7))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('Sounds & feedback',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Play learning sounds'),
-            subtitle: const Text(
-                'Cheery answers, gentle mistakes and small celebrations.'),
+            subtitle:
+                const Text('Soft taps, warm chimes and gentle retry cues.'),
             value: enabled,
             onChanged: (value) {
               setState(() => enabled = value);
@@ -178,5 +184,22 @@ class _SoundSettingsState extends State<SoundSettings> {
                 : null,
             icon: const Icon(Icons.play_circle_outline),
             label: const Text('Preview sound')),
-      ]);
+        Wrap(spacing: 8, children: [
+          for (final cue in SoundCue.values)
+            OutlinedButton(
+                onPressed: enabled
+                    ? () async {
+                        await save();
+                        await SoundEffects.instance.play(cue);
+                      }
+                    : null,
+                child: Text(const {
+                  SoundCue.tap: 'Tap',
+                  SoundCue.correct: 'Correct',
+                  SoundCue.incorrect: 'Retry',
+                  SoundCue.complete: 'Lesson done',
+                  SoundCue.achievement: 'XP reward'
+                }[cue]!))
+        ]),
+      ]));
 }

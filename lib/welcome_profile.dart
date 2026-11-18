@@ -1,3 +1,4 @@
+import 'polished_panels.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,8 +6,6 @@ import 'language_courses.dart';
 import 'quest_motion.dart';
 import 'quest_widgets.dart';
 import 'reference_design.dart';
-import 'sound_effects.dart';
-import 'cloud_progress.dart';
 
 const avatarColors = [
   Color(0xFF58CC02),
@@ -89,7 +88,12 @@ class _BuddyPainter extends CustomPainter {
 class LaunchScreen extends StatefulWidget {
   final SharedPreferences prefs;
   final Widget Function() dashboard;
-  const LaunchScreen({super.key, required this.prefs, required this.dashboard});
+  final bool showSplash;
+  const LaunchScreen(
+      {super.key,
+      required this.prefs,
+      required this.dashboard,
+      this.showSplash = true});
   @override
   State<LaunchScreen> createState() => _LaunchScreenState();
 }
@@ -100,12 +104,14 @@ class _LaunchScreenState extends State<LaunchScreen> {
   @override
   void initState() {
     super.initState();
+    splash = widget.showSplash;
     activeLanguage = parseLanguage(widget.prefs.getString('language'));
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!widget.showSplash) return;
     timer ??= Timer(
         Duration(
             milliseconds: MediaQuery.disableAnimationsOf(context) ? 100 : 1400),
@@ -134,8 +140,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
                 fontSize: 40, fontWeight: FontWeight.w900, color: questGreen)),
         const Text('Small steps. Big possibilities.'),
         const SizedBox(height: 28),
-        const Text('By Zulkifal Khan & Jamal Khan',
-            style: TextStyle(fontSize: 12, color: Colors.black54))
       ]))));
     }
     if (activeLanguage == null) {
@@ -345,83 +349,104 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(title: const Text('Your profile')),
-      body: Center(
-          child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620),
-              child: Form(
-                  key: form,
-                  child: ListView(padding: const EdgeInsets.all(24), children: [
-                    Center(
-                        child: QuestEntrance(
-                            key: ValueKey(avatar),
-                            child:
-                                QuestBuddy(avatar: avatar, celebrate: true))),
-                    const SizedBox(height: 12),
-                    const Text('Pick your learning buddy',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 12),
-                    Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 12,
-                        children: List.generate(
-                            4,
-                            (i) => IconButton(
-                                tooltip: 'Choose buddy ${i + 1}',
-                                onPressed: () => setState(() => avatar = i),
-                                icon: CircleAvatar(
-                                    backgroundColor: avatarColors[i],
-                                    child: Icon(
-                                        avatar == i ? Icons.check : Icons.face,
-                                        color: Colors.white))))),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                        controller: name,
-                        maxLength: 50,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                            labelText: 'Name', border: OutlineInputBorder()),
-                        validator: (v) => (v ?? '').trim().isEmpty
-                            ? 'Enter your name.'
-                            : null),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                        controller: email,
-                        keyboardType: TextInputType.emailAddress,
-                        maxLength: 100,
-                        decoration: const InputDecoration(
-                            labelText: 'Gmail',
-                            hintText: 'yourname@gmail.com',
-                            border: OutlineInputBorder()),
-                        validator: (v) =>
-                            RegExp(r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@gmail\.com$')
-                                    .hasMatch((v ?? '').trim().toLowerCase())
-                                ? null
-                                : 'Enter a valid @gmail.com address.'),
-                    const SizedBox(height: 12),
-                    const Text(
-                        'Profile edits save on this device and sync when signed in. This form does not change your login email.',
-                        style: TextStyle(fontSize: 12, color: Colors.black54)),
-                    const SizedBox(height: 20),
-                    QuestButton(
-                        label: busy ? 'Saving...' : 'Save my profile',
-                        onPressed: busy ? null : save),
-                    if (message != null)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(message!)),
-                    const SizedBox(height: 30),
-                    const Divider(),
-                    const CloudAccountCard(),
-                    SoundSettings(prefs: widget.prefs),
-                    const SizedBox(height: 24),
-                    const Text('Made with curiosity',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 8),
-                    const Text('Developed by\nZulkifal Khan & Jamal Khan',
-                        textAlign: TextAlign.center),
-                  ])))));
+      body: QuestEntrance(
+          child: Center(
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Form(
+                      key: form,
+                      child: ListView(
+                          padding: const EdgeInsets.all(24),
+                          children: [
+                            const FeatureBanner(
+                                eyebrow: 'MAKE IT YOURS',
+                                title: 'Your coder identity.',
+                                subtitle:
+                                    'A name, a buddy and a little personality. Ready for your next adventure.',
+                                icon: Icons.face_rounded,
+                                color: Color(0xFF9470D7)),
+                            Center(
+                                child: QuestEntrance(
+                                    key: ValueKey(avatar),
+                                    child: QuestBuddy(
+                                        avatar: avatar, celebrate: true))),
+                            const SizedBox(height: 12),
+                            const Text('Pick your learning buddy',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 12),
+                            Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 12,
+                                children: List.generate(
+                                    4,
+                                    (i) => IconButton(
+                                        tooltip: 'Choose buddy ${i + 1}',
+                                        onPressed: () =>
+                                            setState(() => avatar = i),
+                                        icon: CircleAvatar(
+                                            backgroundColor: avatarColors[i],
+                                            child: Icon(
+                                                avatar == i
+                                                    ? Icons.check
+                                                    : Icons.face,
+                                                color: Colors.white))))),
+                            const SizedBox(height: 24),
+                            TextFormField(
+                                controller: name,
+                                maxLength: 50,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: const InputDecoration(
+                                    labelText: 'Name',
+                                    prefixIcon: Icon(Icons.person_outline),
+                                    filled: true,
+                                    fillColor: Color(0xFFF5F7FA),
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(16)),
+                                        borderSide: BorderSide.none)),
+                                validator: (v) => (v ?? '').trim().isEmpty
+                                    ? 'Enter your name.'
+                                    : null),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                                controller: email,
+                                keyboardType: TextInputType.emailAddress,
+                                maxLength: 100,
+                                decoration: const InputDecoration(
+                                    labelText: 'Gmail',
+                                    prefixIcon: Icon(Icons.mail_outline),
+                                    hintText: 'yourname@gmail.com',
+                                    filled: true,
+                                    fillColor: Color(0xFFF5F7FA),
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                            Radius.circular(16)),
+                                        borderSide: BorderSide.none)),
+                                validator: (v) =>
+                                    RegExp(r'^[a-zA-Z0-9.!#$%&*+/=?^_`{|}~-]+@gmail\.com$')
+                                            .hasMatch(
+                                                (v ?? '').trim().toLowerCase())
+                                        ? null
+                                        : 'Enter a valid @gmail.com address.'),
+                            const SizedBox(height: 12),
+                            const Text(
+                                'Profile edits save on this device and sync when signed in. This form does not change your login email.',
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 20),
+                            QuestButton(
+                                label: busy ? 'Saving...' : 'Save my profile',
+                                onPressed: busy ? null : save),
+                            if (message != null)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: QuestEntrance(
+                                      key: ValueKey(message),
+                                      child: Text(message!))),
+                            const SizedBox(height: 30),
+                            const SizedBox(height: 24),
+                          ]))))));
 }
 
 class QuizPreferences {
@@ -433,61 +458,104 @@ Future<QuizPreferences?> chooseQuizPreferences(
     BuildContext context, SharedPreferences prefs) async {
   var challenge = prefs.getBool('challengeMode') ?? false;
   var auto = prefs.getBool('autoAdvance') ?? true;
-  return showDialog<QuizPreferences>(
+  return showModalBottomSheet<QuizPreferences>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 540),
       builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialog) => AlertDialog(
-                  title: const Text('Choose your quest mode'),
-                  content: SingleChildScrollView(
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    RadioListTile<bool>(
-                        value: false,
-                        groupValue: challenge,
-                        onChanged: (v) => setDialog(() => challenge = v!),
-                        title: const Text('Easy'),
-                        subtitle:
-                            const Text('Core basics. No question timer.')),
-                    RadioListTile<bool>(
-                        value: true,
-                        groupValue: challenge,
-                        onChanged: (v) => setDialog(() => challenge = v!),
-                        title: const Text('Difficult'),
-                        subtitle: const Text(
-                            'Code reasoning. 30 seconds per question.')),
-                    SwitchListTile(
-                        value: auto,
-                        onChanged: (v) => setDialog(() => auto = v),
-                        title: const Text('Auto-next after 5 seconds'),
-                        subtitle: const Text(
-                            'You can pause the countdown to read feedback.')),
-                  ])),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(dialogContext),
-                        child: const Text('Not now')),
-                    FilledButton(
-                        onPressed: () async {
-                          try {
-                            final ok = await Future.wait([
-                              prefs.setBool('challengeMode', challenge),
-                              prefs.setBool('autoAdvance', auto)
-                            ]);
-                            if (!ok.every((v) => v)) {
-                              throw StateError('Save failed');
-                            }
-                            if (dialogContext.mounted) {
-                              Navigator.pop(dialogContext,
-                                  QuizPreferences(challenge, auto));
-                            }
-                          } catch (_) {
-                            if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'Could not save quiz settings. Please retry.')));
-                            }
-                          }
-                        },
-                        child: const Text('Start quest'))
-                  ])));
+          builder: (context, setDialog) => SafeArea(
+              child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: SingleChildScrollView(
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        const Text('Choose your quest mode',
+                            style: TextStyle(
+                                fontSize: 25, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 8),
+                        const Text('Pick the difficulty that fits your goal.',
+                            style: TextStyle(color: Colors.black54)),
+                        const SizedBox(height: 24),
+                        Container(
+                            decoration: BoxDecoration(
+                                color: !challenge
+                                    ? const Color(0xFFF2FAE9)
+                                    : Colors.white,
+                                border: Border.all(
+                                    color: !challenge
+                                        ? questGreen
+                                        : const Color(0xFFE2E2E8)),
+                                borderRadius: BorderRadius.circular(18)),
+                            child: RadioListTile<bool>(
+                                value: false,
+                                groupValue: challenge,
+                                onChanged: (v) =>
+                                    setDialog(() => challenge = v!),
+                                title: const Text('Easy'),
+                                subtitle: const Text(
+                                    'Core basics. No question timer.'))),
+                        const SizedBox(height: 12),
+                        Container(
+                            decoration: BoxDecoration(
+                                color: challenge
+                                    ? const Color(0xFFF2FAE9)
+                                    : Colors.white,
+                                border: Border.all(
+                                    color: challenge
+                                        ? questGreen
+                                        : const Color(0xFFE2E2E8)),
+                                borderRadius: BorderRadius.circular(18)),
+                            child: RadioListTile<bool>(
+                                value: true,
+                                groupValue: challenge,
+                                onChanged: (v) =>
+                                    setDialog(() => challenge = v!),
+                                title: const Text('Difficult'),
+                                subtitle: const Text(
+                                    'Code reasoning. 30 seconds per question.'))),
+                        const SizedBox(height: 20),
+                        const Divider(),
+                        SwitchListTile(
+                            value: auto,
+                            onChanged: (v) => setDialog(() => auto = v),
+                            title: const Text('Auto-next after 5 seconds'),
+                            subtitle: const Text(
+                                'You can pause the countdown to read feedback.')),
+                        const SizedBox(height: 24),
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('Not now')),
+                              FilledButton(
+                                  onPressed: () async {
+                                    try {
+                                      final ok = await Future.wait([
+                                        prefs.setBool(
+                                            'challengeMode', challenge),
+                                        prefs.setBool('autoAdvance', auto)
+                                      ]);
+                                      if (!ok.every((v) => v)) {
+                                        throw StateError('Save failed');
+                                      }
+                                      if (dialogContext.mounted) {
+                                        Navigator.pop(dialogContext,
+                                            QuizPreferences(challenge, auto));
+                                      }
+                                    } catch (_) {
+                                      if (dialogContext.mounted) {
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Could not save quiz settings. Please retry.')));
+                                      }
+                                    }
+                                  },
+                                  child: const Text('Start quest'))
+                            ]),
+                      ]))))));
 }

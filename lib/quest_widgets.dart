@@ -173,8 +173,10 @@ class QuestPath extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 18, top: 12),
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                        color: const Color(0xFFF0F9E6),
-                        borderRadius: BorderRadius.circular(18)),
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFFEAF6E3), Color(0xFFF4F9EF)]),
+                        border: Border.all(color: const Color(0xFFDEECD2)),
+                        borderRadius: BorderRadius.circular(22)),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -227,6 +229,16 @@ class QuestPath extends StatelessWidget {
                                           decoration: BoxDecoration(
                                               shape: BoxShape.circle,
                                               color: color,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                    color: open
+                                                        ? questGreen.withValues(
+                                                            alpha: .2)
+                                                        : const Color(
+                                                            0xFFE0E3E9),
+                                                    offset: const Offset(0, 4),
+                                                    blurRadius: 0)
+                                              ],
                                               border: Border.all(
                                                   color: current
                                                       ? questGreen

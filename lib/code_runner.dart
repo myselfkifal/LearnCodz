@@ -1,13 +1,18 @@
+import 'lottie_effects.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'language_courses.dart';
 import 'quest_widgets.dart';
 import 'reference_design.dart';
 import 'sound_effects.dart';
+import 'coding_missions.dart';
+import 'polished_panels.dart';
+import 'quest_motion.dart';
 
 String codeMask(String code) => code.replaceAllMapped(
     RegExp(r'''//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' '''
@@ -178,7 +183,17 @@ class CompilerService {
 class CodeRunnerPage extends StatefulWidget {
   final SharedPreferences prefs;
   final http.Client Function()? clientFactory;
-  const CodeRunnerPage({super.key, required this.prefs, this.clientFactory});
+  final StudyLanguage? initialLanguage;
+  final String? initialCode, sourceId;
+  final CodingMission? mission;
+  const CodeRunnerPage(
+      {super.key,
+      required this.prefs,
+      this.clientFactory,
+      this.initialLanguage,
+      this.initialCode,
+      this.sourceId,
+      this.mission});
   @override
   State<CodeRunnerPage> createState() => _CodeRunnerPageState();
 }
@@ -193,10 +208,20 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
   DateTime? lastRun;
   String? error, status;
   RunResult? result;
+  final List<(MissionCase, RunResult)> caseResults = [];
+  String get draftSuffix =>
+      '${language.name}${widget.mission != null ? '.mission.${widget.mission!.id}' : widget.sourceId != null ? '.${widget.sourceId}' : ''}';
+  bool get allTestsPassed =>
+      widget.mission != null &&
+      caseResults.length == widget.mission!.cases.length &&
+      caseResults.every((entry) =>
+          entry.$2.success &&
+          normalizedOutput(entry.$2.output) ==
+              normalizedOutput(entry.$1.expected));
   @override
   void initState() {
     super.initState();
-    language = activeLanguage ?? StudyLanguage.cpp;
+    language = widget.initialLanguage ?? activeLanguage ?? StudyLanguage.cpp;
     loadDraft();
     code.addListener(changed);
     input.addListener(changed);
@@ -209,18 +234,28 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
         StudyLanguage.java => 'System.out.println("Hello, LearnCodz!");'
       };
   void loadDraft() {
-    code.text = widget.prefs.getString('codeDraft.${language.name}') ??
+    code.text = widget.prefs.getString('codeDraft.$draftSuffix') ??
+        widget.initialCode ??
+        widget.mission?.starter(language) ??
         starter(language);
-    input.text = widget.prefs.getString('codeInput.${language.name}') ?? '';
+    input.text = widget.prefs.getString('codeInput.$draftSuffix') ?? '';
   }
 
   void changed() {
+    if (mounted && !running && (result != null || caseResults.isNotEmpty)) {
+      setState(() {
+        result = null;
+        status = null;
+        error = null;
+        caseResults.clear();
+      });
+    }
     draftTimer?.cancel();
     draftTimer = Timer(const Duration(milliseconds: 600), saveDraft);
   }
 
   Future<void> saveDraft() async {
-    final l = language.name, source = code.text, stdin = input.text;
+    final l = draftSuffix, source = code.text, stdin = input.text;
     try {
       await Future.wait([
         widget.prefs.setString('codeDraft.$l', source),
@@ -234,6 +269,7 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
     draftTimer?.cancel();
     runningClient?.close();
     saveDraft();
+    editorFocus.dispose();
     code.dispose();
     input.dispose();
     super.dispose();
@@ -254,6 +290,7 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
       running = true;
       error = null;
       result = null;
+      caseResults.clear();
       status = 'Compiling and running…';
     });
     try {
@@ -286,6 +323,127 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
     }
   }
 
+  Future<void> checkMission() async {
+    final mission = widget.mission;
+    if (mission == null || running) return;
+    final id = ++generation;
+    final source = code.text;
+    final client = widget.clientFactory?.call() ?? http.Client();
+    runningClient = client;
+    setState(() {
+      running = true;
+      error = null;
+      result = null;
+      caseResults.clear();
+      status = 'Checking your solution…';
+    });
+    try {
+      await saveDraft();
+      for (final test in mission.cases) {
+        if (!mounted || id != generation) return;
+        final value =
+            await CompilerService(client).run(language, source, test.input);
+        if (!mounted || id != generation) return;
+        setState(() {
+          caseResults.add((test, value));
+          if (!value.success) result = value;
+        });
+        if (!value.success) break;
+      }
+      if (allTestsPassed) {
+        final completed =
+            (widget.prefs.getStringList('missionCompletions') ?? []).toSet()
+              ..add('${language.name}:${mission.id}');
+        final saved = await widget.prefs
+            .setStringList('missionCompletions', completed.toList());
+        if (mounted && id == generation) {
+          setState(() => status = saved
+              ? 'Mission complete — all tests passed!'
+              : 'All tests passed. Completion could not be saved. Please retry.');
+          SoundEffects.instance.play(SoundCue.achievement);
+        }
+      } else {
+        setState(() =>
+            status = 'A useful clue. Check the cases below and try again.');
+      }
+    } on TimeoutException {
+      if (mounted && id == generation) {
+        setState(() => error =
+            'The test timed out. Check for an endless loop and try again.');
+      }
+    } on FormatException catch (e) {
+      if (mounted && id == generation) {
+        setState(() => error = e.message);
+      }
+    } catch (_) {
+      if (mounted && id == generation) {
+        setState(() => error =
+            'Could not finish the tests. Check your connection and retry.');
+      }
+    } finally {
+      client.close();
+      if (mounted && id == generation) setState(() => running = false);
+    }
+  }
+
+  Widget missionBrief() =>
+      ToolkitPanel(title: widget.mission!.title, children: [
+        Text(widget.mission!.description,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 16),
+        ...widget.mission!.steps.indexed.map((entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              CircleAvatar(
+                  radius: 12,
+                  backgroundColor: const Color(0xFFEAF4DD),
+                  child: Text('${entry.$1 + 1}',
+                      style: const TextStyle(fontSize: 12, color: questGreen))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Text(entry.$2,
+                      style: const TextStyle(fontSize: 13, height: 1.5)))
+            ]))),
+        ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            leading:
+                const Icon(Icons.lightbulb_outline, color: Color(0xFFE0A126)),
+            title: const Text('Need a hint?'),
+            children: widget.mission!.hints
+                .map((hint) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(hint, style: const TextStyle(fontSize: 13))))
+                .toList()),
+        const Text(
+            'Check cases with the button below the editor. Print only the requested output; avoid input prompts.',
+            style: TextStyle(fontSize: 12, color: Colors.black54))
+      ]);
+  Widget friendlyError() {
+    final hint = CompilerHint.from(result!.errors, language, code.text,
+        generatedSource: prepareProgram(language, code.text));
+    return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: ToolkitPanel(title: hint.title, children: [
+          Text(hint.detail),
+          if (hint.line != null)
+            TextButton.icon(
+                onPressed: () {
+                  final lines = code.text.split('\n');
+                  final start = lines
+                      .take(hint.line! - 1)
+                      .fold<int>(0, (sum, line) => sum + line.length + 1);
+                  code.selection = TextSelection(
+                      baseOffset: start,
+                      extentOffset: start + lines[hint.line! - 1].length);
+                  FocusScope.of(context).requestFocus(editorFocus);
+                },
+                icon: const Icon(Icons.my_location),
+                label: Text('Highlight line ${hint.line}'))
+        ]));
+  }
+
+  final editorFocus = FocusNode();
+
   void cancel() {
     generation++;
     runningClient?.close();
@@ -316,25 +474,76 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
       ]));
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: const Text('Code Playground')),
+      appBar: AppBar(
+          title: Text(
+              widget.mission == null ? 'Code Playground' : 'Mission Studio'),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent),
       body: Center(
           child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 850),
               child: ListView(padding: const EdgeInsets.all(22), children: [
-                const Text('Write a little. Run it. See what happens.',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 12),
+                if (widget.mission == null)
+                  Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFFEAF6FF), Color(0xFFF0F8E8)]),
+                          borderRadius: BorderRadius.circular(24)),
+                      child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Text('YOUR CODING SANDBOX',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          letterSpacing: 1.4,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF397CA3))),
+                                  SizedBox(height: 10),
+                                  Text('Small ideas.\nReal code.',
+                                      style: TextStyle(
+                                          fontSize: 28,
+                                          height: 1.15,
+                                          fontWeight: FontWeight.w900)),
+                                  SizedBox(height: 10),
+                                  Text(
+                                      'Experiment, run, repeat.\nYour draft stays right here.',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.black54,
+                                          height: 1.5))
+                                ])),
+                            SizedBox(width: 12),
+                            CircleAvatar(
+                                radius: 30,
+                                backgroundColor: Colors.white,
+                                child: Icon(Icons.terminal_rounded,
+                                    size: 32, color: Color(0xFF2196DC)))
+                          ])),
+                const SizedBox(height: 22),
+                if (widget.mission != null) missionBrief(),
                 DropdownButtonFormField<StudyLanguage>(
                     value: language,
                     decoration: const InputDecoration(
                         labelText: 'Programming language',
-                        border: OutlineInputBorder()),
+                        prefixIcon: Icon(Icons.code_rounded, color: questGreen),
+                        filled: true,
+                        fillColor: Color(0xFFF7F8FA),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                            borderSide: BorderSide.none)),
                     items: StudyLanguage.values
                         .map((l) => DropdownMenuItem(
                             value: l, child: Text(languageName(l))))
                         .toList(),
-                    onChanged: running
+                    onChanged: running ||
+                            widget.mission != null ||
+                            widget.sourceId != null
                         ? null
                         : (l) {
                             if (l == null) return;
@@ -352,28 +561,99 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
                 Text(
                     language == StudyLanguage.python
                         ? 'Write normal Python code. No special setup required.'
-                        : 'Write statements only — we add standard imports and the entry point. A normal full program is also accepted.',
+                        : 'Setup included. Write statements or a full program.',
                     style:
                         const TextStyle(fontSize: 13, color: Colors.black54)),
                 const SizedBox(height: 12),
-                TextField(
-                    controller: code,
-                    readOnly: running,
-                    minLines: 9,
-                    maxLines: 18,
-                    maxLength: 20000,
-                    keyboardType: TextInputType.multiline,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: const TextStyle(
-                        fontFamily: 'monospace', fontSize: 14, height: 1.5),
-                    decoration: InputDecoration(
-                        labelText: 'Your code',
-                        alignLabelWithHint: true,
-                        filled: true,
-                        fillColor: const Color(0xFFF7F6FB),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16)))),
+                Container(
+                    decoration: BoxDecoration(
+                        color: const Color(0xFF192433),
+                        borderRadius: BorderRadius.circular(20)),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(children: [
+                      Container(
+                          padding: const EdgeInsets.fromLTRB(16, 7, 8, 7),
+                          color: const Color(0xFF243246),
+                          child: Row(children: [
+                            for (final color in [
+                              const Color(0xFFFF8B83),
+                              const Color(0xFFFFD77B),
+                              const Color(0xFF8BDC9F)
+                            ])
+                              Padding(
+                                  padding: const EdgeInsets.only(right: 5),
+                                  child: CircleAvatar(
+                                      radius: 4, backgroundColor: color)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                                child: Text(
+                                    'main.${switch (language) {
+                                      StudyLanguage.cpp => 'cpp',
+                                      StudyLanguage.python => 'py',
+                                      StudyLanguage.java => 'java',
+                                      StudyLanguage.c => 'c'
+                                    }}',
+                                    style: const TextStyle(
+                                        color: Color(0xFFCCD7E6),
+                                        fontFamily: 'monospace',
+                                        fontSize: 12))),
+                            IconButton(
+                                tooltip: 'Copy code',
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                      ClipboardData(text: code.text));
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                            content: Text('Code copied')));
+                                  }
+                                },
+                                icon: const Icon(Icons.copy_rounded,
+                                    color: Color(0xFFB9CBDD), size: 18))
+                          ])),
+                      Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                          child: TextField(
+                              key: const ValueKey('code-editor'),
+                              controller: code,
+                              focusNode: editorFocus,
+                              readOnly: running,
+                              minLines: 8,
+                              maxLines: 18,
+                              maxLength: 20000,
+                              keyboardType: TextInputType.multiline,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              cursorColor: const Color(0xFFB6F18A),
+                              style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 14,
+                                  height: 1.7,
+                                  color: Color(0xFFD7EDCB)),
+                              decoration: const InputDecoration(
+                                  filled: false,
+                                  labelText: 'Your code',
+                                  labelStyle:
+                                      TextStyle(color: Color(0xFFB9CBDD)),
+                                  floatingLabelBehavior:
+                                      FloatingLabelBehavior.always,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  counterStyle: TextStyle(
+                                      color: Color(0xFF9BAFC5), fontSize: 10))))
+                    ])),
+                const SizedBox(height: 10),
+                const SizedBox(height: 10),
+                const Row(children: [
+                  Icon(Icons.keyboard_alt_outlined,
+                      size: 20, color: Color(0xFF6C7E92)),
+                  SizedBox(width: 8),
+                  Text('Test with your own input',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 16))
+                ]),
                 const SizedBox(height: 10),
                 TextField(
                     controller: input,
@@ -387,10 +667,14 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
                         hintText:
                             'Enter all answers here before Run, one per line.',
                         alignLabelWithHint: true,
-                        border: OutlineInputBorder())),
+                        filled: true,
+                        fillColor: Color(0xFFF7F8FA),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(16)),
+                            borderSide: BorderSide.none))),
                 const SizedBox(height: 12),
                 const Text(
-                    'Runs online using Wandbox. Your code and input are sent for execution; this app does not request a public saved link.',
+                    'Runs online with Wandbox. Your code and input are sent to run.',
                     style: TextStyle(fontSize: 12, color: Colors.black54)),
                 const SizedBox(height: 16),
                 if (running) ...[
@@ -399,7 +683,43 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
                   OutlinedButton(
                       onPressed: cancel, child: const Text('Cancel run'))
                 ] else
-                  QuestButton(label: 'Run code', onPressed: run),
+                  QuestButton(
+                      label: 'Run code', onPressed: run, color: questGreen),
+                if (widget.mission != null && !running) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                      onPressed: checkMission,
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('Check all test cases'))
+                ],
+                if (allTestsPassed)
+                  const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: QuestEntrance(
+                          child: Column(children: [
+                        QuestLottie(
+                            animation: QuestAnimation.celebrate, size: 92),
+                        FeatureBanner(
+                            eyebrow: 'YOU BUILT IT',
+                            title: 'All green. Nice work!',
+                            subtitle: 'Your solution passed every test case.',
+                            icon: Icons.verified_rounded)
+                      ]))),
+                for (final entry in caseResults.indexed)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: ToolkitPanel(
+                          title:
+                              'Case ${entry.$1 + 1} · ${entry.$2.$2.success && normalizedOutput(entry.$2.$2.output) == normalizedOutput(entry.$2.$1.expected) ? 'Passed' : 'Needs a fix'}',
+                          children: [
+                            Text('Input: ${entry.$2.$1.input}'),
+                            Text('Expected: ${entry.$2.$1.expected}'),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                                'Your output: ${entry.$2.$2.output.isEmpty ? '(none)' : entry.$2.$2.output}',
+                                style: const TextStyle(
+                                    fontFamily: 'monospace', fontSize: 13))
+                          ])),
                 if (status != null)
                   Padding(
                       padding: const EdgeInsets.only(top: 14),
@@ -408,6 +728,8 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
                 if (error != null)
                   output('Connection / run problem', error!, problem: true),
                 if (result != null) ...[
+                  if (!result!.success && result!.errors.isNotEmpty)
+                    friendlyError(),
                   output(
                       'Output',
                       result!.output.isEmpty
@@ -428,8 +750,15 @@ class _CodeRunnerPageState extends State<CodeRunnerPage> {
                 ],
                 const SizedBox(height: 18),
                 ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: const Text('See the complete program we generate'),
+                    leading: const Icon(Icons.integration_instructions_outlined,
+                        color: questGreen),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    collapsedShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    collapsedBackgroundColor: const Color(0xFFF6F8F3),
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                    title: const Text('Advanced: full program'),
                     children: [
                       ValueListenableBuilder<TextEditingValue>(
                           valueListenable: code,

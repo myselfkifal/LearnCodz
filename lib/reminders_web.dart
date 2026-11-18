@@ -6,7 +6,7 @@ class ReminderService {
   Timer? timer;
   String? lastDay;
   static const description =
-      'Browser notifications require permission and this app tab to stay open. Closed-tab reminders need a push service, which this offline app does not use.';
+      'Daily nudges for the web preview. Background delivery is supported in the Android app.';
   Future<bool> configure(bool enabled, int hour, int minute,
       {bool request = true}) async {
     timer?.cancel();
@@ -28,5 +28,17 @@ class ReminderService {
     return true;
   }
 
+  Future<bool> test() async {
+    if (!html.Notification.supported) return false;
+    if (await html.Notification.requestPermission() != 'granted') return false;
+    html.Notification('LearnCodz notifications are working',
+        body: 'Your next coding adventure is ready.');
+    return true;
+  }
+
+  Future<String> status() async => html.Notification.supported
+      ? 'Browser permission: ${html.Notification.permission}. Closed-tab delivery is not available in this web preview.'
+      : 'This browser does not support notifications.';
+  Future<bool> openSettings() async => false;
   void dispose() => timer?.cancel();
 }

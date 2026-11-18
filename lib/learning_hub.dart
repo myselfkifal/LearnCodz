@@ -1,29 +1,93 @@
+import 'polished_panels.dart';
 import 'package:flutter/material.dart';
 import 'lessons.dart';
 import 'learning_data.dart';
 import 'reminders.dart';
 import 'quest_widgets.dart';
 import 'quest_motion.dart';
-import 'language_courses.dart';
 
 class LearningHub extends StatefulWidget {
   final LearningData data;
   final ReminderService reminders;
   final void Function(int) openLesson;
-  final VoidCallback openLab;
   const LearningHub(
       {super.key,
       required this.data,
       required this.reminders,
-      required this.openLesson,
-      required this.openLab});
+      required this.openLesson});
   @override
   State<LearningHub> createState() => _LearningHubState();
 }
 
-class _LearningHubState extends State<LearningHub> {
+class _LearningHubState extends State<LearningHub> with WidgetsBindingObserver {
   bool busy = false;
   String? message;
+  String notificationStatus = 'Checking notification permission...';
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    refreshStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !busy) {
+      resumeReminders();
+    }
+  }
+
+  Future<void> resumeReminders() async {
+    final prefs = widget.data.prefs;
+    if (prefs.getBool('reminders') ?? false) {
+      try {
+        await widget.reminders.configure(
+            true,
+            prefs.getInt('reminderHour') ?? 19,
+            prefs.getInt('reminderMinute') ?? 0,
+            request: false);
+      } catch (_) {}
+    }
+    await refreshStatus();
+  }
+
+  Future<void> refreshStatus() async {
+    try {
+      final result = await widget.reminders.status();
+      if (mounted) setState(() => notificationStatus = result);
+    } catch (_) {
+      if (mounted) {
+        setState(() => notificationStatus =
+            'Notification status unavailable. Use the test button on your Android phone.');
+      }
+    }
+  }
+
+  Future<void> testNotification() async {
+    setState(() => busy = true);
+    try {
+      final ok = await widget.reminders.test();
+      if (mounted) {
+        setState(() => message = ok
+            ? 'Test sent. Check the notification shade and sound settings.'
+            : 'Permission was not granted. Open notification settings and allow LearnCodz.');
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => message =
+            'The test could not be sent. Check notification settings and try again.');
+      }
+    }
+    await refreshStatus();
+    if (mounted) setState(() => busy = false);
+  }
+
   Future<void> reminder(bool enable) async {
     final prefs = widget.data.prefs;
     var hour = prefs.getInt('reminderHour') ?? 19,
@@ -59,21 +123,12 @@ class _LearningHubState extends State<LearningHub> {
             'Could not configure the reminder on this device. Please retry.');
       }
     }
+    await refreshStatus();
     if (mounted) setState(() => busy = false);
   }
 
-  Widget section(String title, List<Widget> children) => Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFE5E5E5), width: 2),
-          borderRadius: BorderRadius.circular(22)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
-        ...children
-      ]));
+  Widget section(String title, List<Widget> children) =>
+      ToolkitPanel(title: title, children: children);
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(title: const Text('Your learning toolkit')),
@@ -89,24 +144,15 @@ class _LearningHubState extends State<LearningHub> {
                         .entries
                         .where((e) => data.bookmarks.contains(e.value.id))
                         .toList();
-                    final topics = [
-                      ...lessons.map((l) => l.title),
-                      activeLanguage == null
-                          ? 'Coding lab'
-                          : '${languageName(activeLanguage!)} · Coding lab'
-                    ];
                     return ListView(
                         padding: const EdgeInsets.all(20),
                         children: [
-                          section('Make code click', [
-                            const Text(
-                                'Predict output, fill missing code, arrange lines, and find bugs. Eight hands-on questions, with explanations and no timer.'),
-                            const SizedBox(height: 16),
-                            QuestButton(
-                                label: 'Open coding lab',
-                                onPressed: widget.openLab,
-                                color: questBlue)
-                          ]),
+                          const FeatureBanner(
+                              eyebrow: 'YOUR LEARNING SPACE',
+                              title: 'Build your rhythm.',
+                              subtitle:
+                                  'A little focus, a saved idea, a new skill. Make learning yours.',
+                              icon: Icons.auto_awesome_rounded),
                           section('Your daily mission', [
                             Text(
                                 '${data.todaySeconds ~/ 60}m ${data.todaySeconds % 60}s of ${data.goal} minutes today'),
@@ -114,7 +160,8 @@ class _LearningHubState extends State<LearningHub> {
                             LinearProgressIndicator(
                                 value: (data.todaySeconds / (data.goal * 60))
                                     .clamp(0, 1),
-                                minHeight: 10),
+                                minHeight: 10,
+                                borderRadius: BorderRadius.circular(10)),
                             const SizedBox(height: 12),
                             Wrap(
                                 spacing: 8,
@@ -144,7 +191,23 @@ class _LearningHubState extends State<LearningHub> {
                                       ]))),
                             Text(data.todaySeconds >= data.goal * 60
                                 ? 'Daily goal reached. Great work!'
-                                : 'Time counts while the app is visible and you have interacted in the last minute. Tap or scroll to keep learning.'),
+                                : 'Your active learning time counts toward this goal.'),
+                            const Tooltip(
+                                message:
+                                    'Study time counts while LearnCodz is visible and you have tapped or scrolled within the last minute.',
+                                child: Padding(
+                                    padding: EdgeInsets.only(top: 8),
+                                    child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.info_outline,
+                                              size: 16, color: Colors.black54),
+                                          SizedBox(width: 6),
+                                          Text('How time is counted',
+                                              style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.black54))
+                                        ]))),
                             if (data.error != null)
                               Text(data.error!,
                                   style: const TextStyle(color: Colors.red))
@@ -167,47 +230,9 @@ class _LearningHubState extends State<LearningHub> {
                                     icon: const Icon(Icons.close),
                                     onPressed: () => data.toggle(e.value.id))))
                           ]),
-                          section('Your skill map', [
-                            const Text(
-                                'Accuracy across all saved attempts, including mistake practice. More attempts give a clearer picture.'),
-                            const SizedBox(height: 14),
-                            ...topics.map((topic) {
-                              final stat = Map<String, dynamic>.from(
-                                  data.mastery[topic] ?? {});
-                              final attempts =
-                                      (stat['attempts'] as num?)?.toInt() ?? 0,
-                                  correct =
-                                      (stat['correct'] as num?)?.toInt() ?? 0;
-                              final rate =
-                                  attempts == 0 ? 0.0 : correct / attempts;
-                              return Padding(
-                                  padding: const EdgeInsets.only(bottom: 18),
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(topic,
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w800)),
-                                        const SizedBox(height: 6),
-                                        LinearProgressIndicator(
-                                            value: rate.clamp(0, 1),
-                                            minHeight: 7,
-                                            color: rate >= .8
-                                                ? questLime
-                                                : questBlue),
-                                        const SizedBox(height: 5),
-                                        Text(
-                                            attempts == 0
-                                                ? 'Unexplored territory. Your first try starts the journey.'
-                                                : '$correct / $attempts correct · ${(rate * 100).round()}% · ${attempts < 3 ? 'Keep exploring' : rate >= .8 ? 'Skill shining!' : 'Your next growth opportunity'}',
-                                            style:
-                                                const TextStyle(fontSize: 12))
-                                      ]));
-                            })
-                          ]),
                           section('Your learning nudge', [
                             const Text(ReminderService.description),
+                            const SizedBox(height: 8),
                             const SizedBox(height: 12),
                             SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
@@ -218,6 +243,38 @@ class _LearningHubState extends State<LearningHub> {
                               TextButton(
                                   onPressed: busy ? null : () => reminder(true),
                                   child: const Text('Change reminder time')),
+                            ExpansionTile(
+                                tilePadding: EdgeInsets.zero,
+                                title: const Text('Having trouble?'),
+                                children: [
+                                  Text(notificationStatus),
+                                  Wrap(spacing: 8, children: [
+                                    OutlinedButton.icon(
+                                        onPressed:
+                                            busy ? null : testNotification,
+                                        icon: const Icon(Icons
+                                            .notifications_active_outlined),
+                                        label: const Text(
+                                            'Send test notification')),
+                                    TextButton(
+                                        onPressed: busy
+                                            ? null
+                                            : () async {
+                                                final opened = await widget
+                                                    .reminders
+                                                    .openSettings();
+                                                if (!opened && mounted) {
+                                                  setState(() => message =
+                                                      'Open your device or browser notification settings and allow LearnCodz.');
+                                                }
+                                              },
+                                        child: const Text(
+                                            'Notification settings')),
+                                    TextButton(
+                                        onPressed: busy ? null : refreshStatus,
+                                        child: const Text('Refresh status')),
+                                  ]),
+                                ]),
                             if (message != null) Text(message!)
                           ]),
                         ]);

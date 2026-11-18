@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'sound_effects.dart';
+import 'google_auth.dart';
+import 'quest_motion.dart';
 
 /// Explicit allowlist: authentication tokens and local backup metadata never sync.
 class ProgressSnapshot {
@@ -16,6 +18,9 @@ class ProgressSnapshot {
     'days',
     'daily',
     'mistakes',
+    'quizRewards',
+    'missionCompletions',
+    'seenAchievements',
     'bookmarks',
     'mastery',
     'learningSeconds',
@@ -30,7 +35,8 @@ class ProgressSnapshot {
   };
   static bool allowed(String key) =>
       keys.contains(key) ||
-      RegExp(r'^code(Draft|Input)\.(cpp|python|java|c)$').hasMatch(key);
+      RegExp(r'^code(Draft|Input)\.(cpp|python|java|c)(?:\.(?:lesson|mission)\.[a-z0-9_-]+)?$')
+          .hasMatch(key);
   static Map<String, dynamic> read(SharedPreferences prefs) => {
         for (final key in (prefs.getKeys().where(allowed).toList()..sort()))
           key: prefs.get(key)
@@ -41,7 +47,15 @@ class ProgressSnapshot {
     for (final entry in input.entries) {
       final k = entry.key.toString(), v = entry.value;
       if (!allowed(k)) continue;
-      const lists = {'days', 'daily', 'mistakes', 'bookmarks'};
+      const lists = {
+        'days',
+        'daily',
+        'mistakes',
+        'bookmarks',
+        'quizRewards',
+        'missionCompletions',
+        'seenAchievements'
+      };
       const integers = {
         'avatar',
         'dailyGoal',
@@ -111,6 +125,20 @@ class CloudProgress extends ChangeNotifier {
   final SupabaseClient client;
   CloudProgress(this.prefs, this.client);
   bool ready = false, busy = false, conflict = false, checked = false;
+  String? authMessage;
+  Future<void>? _preparing;
+  void reportAuthError(String message) {
+    authMessage = message;
+    notifyListeners();
+  }
+
+  Future<void> ensurePrepared() {
+    if (uid == null || (ready && prefs.getString('cloud.owner') == uid)) {
+      return Future.value();
+    }
+    return _preparing ??= prepare().whenComplete(() => _preparing = null);
+  }
+
   String status = 'Your progress is saved on this device.';
   int revision = 0, generation = 0;
   String baseline = '{}';
@@ -139,6 +167,7 @@ class CloudProgress extends ChangeNotifier {
   }
 
   Future<void> prepare() async {
+    authMessage = null;
     ready = false;
     notifyListeners();
     final id = uid;
@@ -174,6 +203,18 @@ class CloudProgress extends ChangeNotifier {
     checked = false;
     conflict = false;
     await sync(restoreUnchanged: true);
+    if (checked && !conflict && client.auth.currentUser != null) {
+      final defaults = GoogleAuth.profileDefaults(client.auth.currentUser!,
+          name: prefs.getString('profileName'),
+          email: prefs.getString('profileEmail'));
+      for (final entry in defaults.entries) {
+        await prefs.setString(entry.key, entry.value);
+      }
+      if (defaults.isNotEmpty) {
+        await cache();
+        await sync();
+      }
+    }
     SoundEffects.instance.initialize(prefs);
     generation++;
     ready = true;
@@ -356,10 +397,26 @@ class _CloudGateState extends State<CloudGate> {
   void initState() {
     super.initState();
     sub = cloud.client.auth.onAuthStateChange.listen((state) {
+      if (state.session != null) {
+        unawaited(prepareSession());
+      }
       if (mounted) setState(() {});
     }, onError: (_) {
+      cloud.reportAuthError('Sign-in was not completed. Please try again.');
       if (mounted) setState(() {});
     });
+    if (cloud.uid != null && !cloud.ready) {
+      scheduleMicrotask(prepareSession);
+    }
+  }
+
+  Future<void> prepareSession() async {
+    try {
+      await cloud.ensurePrepared();
+    } catch (_) {
+      cloud.authMessage = 'Could not load this account. Please retry.';
+      if (mounted) setState(() {});
+    }
   }
 
   @override
@@ -374,8 +431,16 @@ class _CloudGateState extends State<CloudGate> {
       builder: (context, _) {
         if (cloud.uid == null) return const CloudLogin();
         if (!cloud.ready || cloud.prefs.getString('cloud.owner') != cloud.uid) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+          return Scaffold(
+              body: Center(
+                  child: cloud.authMessage == null
+                      ? const CircularProgressIndicator()
+                      : Column(mainAxisSize: MainAxisSize.min, children: [
+                          Text(cloud.authMessage!),
+                          FilledButton(
+                              onPressed: prepareSession,
+                              child: const Text('Retry'))
+                        ])));
         }
         return _AccountNavigator(
             key: ValueKey('${cloud.uid}:${cloud.generation}'),
@@ -403,7 +468,8 @@ class _AccountNavigatorState extends State<_AccountNavigator> {
 }
 
 class CloudLogin extends StatefulWidget {
-  const CloudLogin({super.key});
+  final Future<bool> Function()? googleSignIn;
+  const CloudLogin({super.key, this.googleSignIn});
   @override
   State<CloudLogin> createState() => _CloudLoginState();
 }
@@ -425,6 +491,7 @@ class _CloudLoginState extends State<CloudLogin> {
     setState(() => busy = true);
     final cloud = CloudProgress.instance!;
     cloud.ready = false;
+    cloud.authMessage = null;
     try {
       if (signup) {
         final response = await cloud.client.auth
@@ -440,7 +507,7 @@ class _CloudLoginState extends State<CloudLogin> {
         await cloud.client.auth.signInWithPassword(
             email: email.text.trim(), password: password.text);
       }
-      await cloud.prepare();
+      await cloud.ensurePrepared();
     } on AuthException catch (e) {
       if (mounted) setState(() => message = e.message);
     } catch (_) {
@@ -453,103 +520,187 @@ class _CloudLoginState extends State<CloudLogin> {
     }
   }
 
+  Future<void> googleSignIn() async {
+    setState(() {
+      busy = true;
+      message = null;
+    });
+    CloudProgress.instance?.authMessage = null;
+    try {
+      final launched = await (widget.googleSignIn?.call() ??
+          GoogleAuth.start(CloudProgress.instance!.client));
+      if (mounted) {
+        setState(() => message = launched
+            ? 'Finish signing in in your browser. If you cancelled, you can try again.'
+            : 'Could not open your browser. Please try again.');
+      }
+    } on AuthException catch (error) {
+      if (mounted) {
+        setState(() => message = error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => message =
+            'Could not start Google sign-in. Check internet and try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => busy = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-      body: SafeArea(
-          child: Center(
-              child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
-                  child: Form(
-                      key: form,
-                      child: ListView(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.all(28),
-                          children: [
-                            const Icon(Icons.school_rounded,
-                                size: 68, color: Color(0xFF419500)),
-                            const SizedBox(height: 20),
-                            Text('LearnCodz',
-                                style:
-                                    Theme.of(context).textTheme.headlineLarge,
-                                textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            Text(
-                                signup
-                                    ? 'Create your learning account'
-                                    : 'Welcome back, coder',
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall,
-                                textAlign: TextAlign.center),
-                            const SizedBox(height: 12),
-                            const Text(
-                                'Keep your lessons, progress and code drafts backed up across devices.',
-                                textAlign: TextAlign.center),
-                            const SizedBox(height: 26),
-                            TextFormField(
-                                controller: email,
-                                enabled: !busy,
-                                keyboardType: TextInputType.emailAddress,
-                                autofillHints: const [AutofillHints.email],
-                                decoration: const InputDecoration(
-                                    labelText: 'Email',
-                                    border: OutlineInputBorder()),
-                                validator: (v) =>
-                                    RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                                            .hasMatch(v?.trim() ?? '')
+      body: QuestEntrance(
+          child: SafeArea(
+              child: Center(
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: Form(
+                          key: form,
+                          child: ListView(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.all(28),
+                              children: [
+                                const Icon(Icons.school_rounded,
+                                    size: 68, color: Color(0xFF419500)),
+                                const SizedBox(height: 20),
+                                Text('LearnCodz',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineLarge,
+                                    textAlign: TextAlign.center),
+                                const SizedBox(height: 12),
+                                Text(
+                                    signup
+                                        ? 'Create your learning account'
+                                        : 'Welcome back, coder',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall,
+                                    textAlign: TextAlign.center),
+                                const SizedBox(height: 12),
+                                const Text(
+                                    'Keep your lessons, progress and code drafts backed up across devices.',
+                                    textAlign: TextAlign.center),
+                                const SizedBox(height: 24),
+                                QuestPress(
+                                    child: OutlinedButton.icon(
+                                        icon: SizedBox(
+                                            width: 32,
+                                            height: 32,
+                                            child: AnimatedSwitcher(
+                                                duration: Duration(
+                                                    milliseconds:
+                                                        MediaQuery.disableAnimationsOf(context)
+                                                            ? 0
+                                                            : 180),
+                                                child: busy
+                                                    ? SizedBox(
+                                                        key: const ValueKey(
+                                                            'loading'),
+                                                        width: 20,
+                                                        height: 20,
+                                                        child: MediaQuery.disableAnimationsOf(context)
+                                                            ? const Icon(Icons.hourglass_top,
+                                                                size: 20)
+                                                            : const CircularProgressIndicator(
+                                                                strokeWidth: 2))
+                                                    : Image.asset(
+                                                        'assets/branding/google_g.png',
+                                                        key:
+                                                            const ValueKey('google'),
+                                                        width: 32,
+                                                        height: 32,
+                                                        excludeFromSemantics: true))),
+                                        onPressed: busy ? null : googleSignIn,
+                                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), foregroundColor: const Color(0xFF1F1F1F), backgroundColor: Colors.white, side: const BorderSide(color: Color(0xFF747775))),
+                                        label: const Text('Continue with Google'))),
+                                const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    child: Text('or use your email',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54))),
+                                TextFormField(
+                                    controller: email,
+                                    enabled: !busy,
+                                    keyboardType: TextInputType.emailAddress,
+                                    autofillHints: const [AutofillHints.email],
+                                    decoration: const InputDecoration(
+                                        labelText: 'Email',
+                                        prefixIcon: Icon(Icons.mail_outline),
+                                        border: OutlineInputBorder()),
+                                    validator: (v) =>
+                                        RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                                                .hasMatch(v?.trim() ?? '')
+                                            ? null
+                                            : 'Enter a valid email.'),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                    controller: password,
+                                    enabled: !busy,
+                                    obscureText: hidden,
+                                    autofillHints: [
+                                      signup
+                                          ? AutofillHints.newPassword
+                                          : AutofillHints.password
+                                    ],
+                                    decoration: InputDecoration(
+                                        labelText: 'Password',
+                                        prefixIcon:
+                                            const Icon(Icons.lock_outline),
+                                        border: const OutlineInputBorder(),
+                                        suffixIcon: IconButton(
+                                            onPressed: () => setState(
+                                                () => hidden = !hidden),
+                                            icon: Icon(hidden
+                                                ? Icons.visibility_outlined
+                                                : Icons
+                                                    .visibility_off_outlined))),
+                                    validator: (v) => (v ?? '').length <
+                                            (signup ? 8 : 1)
+                                        ? 'Enter ${signup ? 'at least 8 characters' : 'your password'}.'
+                                        : null),
+                                const SizedBox(height: 22),
+                                QuestPress(
+                                    child: FilledButton(
+                                        onPressed: busy ? null : submit,
+                                        child: Text(busy
+                                            ? 'Connecting...'
+                                            : signup
+                                                ? 'Create account'
+                                                : 'Sign in'))),
+                                TextButton(
+                                    onPressed: busy
                                         ? null
-                                        : 'Enter a valid email.'),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                                controller: password,
-                                enabled: !busy,
-                                obscureText: hidden,
-                                autofillHints: [
-                                  signup
-                                      ? AutofillHints.newPassword
-                                      : AutofillHints.password
-                                ],
-                                decoration: InputDecoration(
-                                    labelText: 'Password',
-                                    border: const OutlineInputBorder(),
-                                    suffixIcon: IconButton(
-                                        onPressed: () =>
-                                            setState(() => hidden = !hidden),
-                                        icon: Icon(hidden
-                                            ? Icons.visibility_outlined
-                                            : Icons.visibility_off_outlined))),
-                                validator: (v) => (v ?? '').length <
-                                        (signup ? 8 : 1)
-                                    ? 'Enter ${signup ? 'at least 8 characters' : 'your password'}.'
-                                    : null),
-                            const SizedBox(height: 22),
-                            FilledButton(
-                                onPressed: busy ? null : submit,
-                                child: Text(busy
-                                    ? 'Connecting...'
-                                    : signup
-                                        ? 'Create account'
-                                        : 'Sign in')),
-                            TextButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => setState(() {
-                                          signup = !signup;
-                                          message = null;
-                                        }),
-                                child: Text(signup
-                                    ? 'Already registered? Sign in'
-                                    : 'New here? Create an account')),
-                            if (message != null)
-                              Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Text(message!,
-                                      textAlign: TextAlign.center)),
-                            const Text(
-                                'Internet is needed to sign in. Once signed in, learning works offline and backup retries when connected.',
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.black54),
-                                textAlign: TextAlign.center),
-                          ]))))));
+                                        : () => setState(() {
+                                              signup = !signup;
+                                              message = null;
+                                            }),
+                                    child: Text(signup
+                                        ? 'Already registered? Sign in'
+                                        : 'New here? Create an account')),
+                                if (CloudProgress.instance?.authMessage != null)
+                                  Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Text(CloudProgress
+                                          .instance!.authMessage!)),
+                                if (message != null)
+                                  Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: QuestEntrance(
+                                          key: ValueKey(message),
+                                          child: Text(message!,
+                                              textAlign: TextAlign.center))),
+                                const Text(
+                                    'Internet is needed to sign in. Once signed in, learning works offline and backup retries when connected.',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.black54),
+                                    textAlign: TextAlign.center),
+                              ])))))));
 }
 
 class CloudAccountCard extends StatelessWidget {
@@ -618,17 +769,30 @@ class CloudAccountCard extends StatelessWidget {
                                     },
                               child: const Text(
                                   'Import previous offline progress')),
-                        TextButton(
-                            onPressed: cloud.busy
-                                ? null
-                                : () async {
-                                    if (await confirm(context, 'Sign out?',
-                                        'Unsynced progress stays on this device for this account.')) {
-                                      await cloud.signOut();
-                                    }
-                                  },
-                            child: const Text('Sign out'))
                       ]),
+                      const SizedBox(height: 16),
+                      QuestPress(
+                          child: FilledButton.icon(
+                              onPressed: cloud.busy
+                                  ? null
+                                  : () async {
+                                      if (await confirm(context, 'Sign out?',
+                                          'Unsynced progress stays on this device for this account.')) {
+                                        await cloud.signOut();
+                                      }
+                                    },
+                              style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF173D38),
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(double.infinity, 54),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18))),
+                              icon: const Icon(Icons.logout_rounded),
+                              label: const Text('Logout',
+                                  style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800)))),
+                      const SizedBox(height: 12),
                       const Text(
                           'Profile email is a contact field. Your sign-in email is shown above.',
                           style:

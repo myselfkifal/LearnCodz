@@ -1,3 +1,10 @@
+import 'lottie_effects.dart';
+import 'animated_navigation.dart';
+import 'quest_refresh.dart';
+import 'question_layout.dart';
+import 'content_picture.dart';
+import 'learning_demo.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -16,24 +23,97 @@ import 'reference_design.dart';
 import 'sound_effects.dart';
 import 'code_runner.dart';
 import 'cloud_progress.dart';
+import 'backend_config.dart';
+import 'achievement_room.dart';
+import 'arcade_picker.dart';
+import 'home_cards.dart';
+import 'polished_panels.dart';
+import 'achievement_badge.dart';
+import 'smart_review.dart';
+import 'answer_explanation.dart';
+import 'app_settings.dart';
+import 'missions_page.dart';
+import 'coding_missions.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const ink = Color(0xFF111218),
     green = Color(0xFF419500),
     mint = Color(0xFFD7FFB8),
     paper = Color(0xFFFFFFFF);
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  registerAnimationLicenses();
+  runApp(StartupApp(load: initializeApp));
+}
+
+Future<Widget> initializeApp() async {
   final prefs = await SharedPreferences.getInstance();
   SoundEffects.instance.initialize(prefs);
   await Supabase.initialize(
-    url: 'https://tcxlovxkmnenwfaljfwy.supabase.co',
-    publishableKey: 'sb_publishable_ioyjHOdwflJ7YtNc5Fi1lQ_hPiS9U6v',
+    url: BackendConfig.url,
+    publishableKey: BackendConfig.publishableKey,
   );
-  final cloud = CloudProgress(prefs, Supabase.instance.client);
-  CloudProgress.instance = cloud;
-  if (cloud.uid != null) await cloud.prepare();
-  runApp(QuizQuest(prefs: prefs, enableCloud: true));
+  CloudProgress.instance = CloudProgress(prefs, Supabase.instance.client);
+  // CloudGate prepares the correct account before exposing its dashboard.
+  return QuizQuest(prefs: prefs, enableCloud: true);
+}
+
+class StartupApp extends StatefulWidget {
+  final Future<Widget> Function() load;
+  const StartupApp({super.key, required this.load});
+  @override
+  State<StartupApp> createState() => _StartupAppState();
+}
+
+class _StartupAppState extends State<StartupApp> {
+  Widget? app;
+  bool failed = false;
+  @override
+  void initState() {
+    super.initState();
+    // Let Flutter draw the brand before starting storage and auth work.
+    WidgetsBinding.instance.addPostFrameCallback((_) => start());
+  }
+
+  Future<void> start() async {
+    if (mounted) setState(() => failed = false);
+    try {
+      final loaded = await widget.load();
+      if (mounted) setState(() => app = loaded);
+    } catch (_) {
+      if (mounted) setState(() => failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      app ??
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: green)),
+        home: Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.code_rounded, color: green, size: 72),
+              const SizedBox(height: 16),
+              const Text('LearnCodz',
+                  style: TextStyle(
+                      fontSize: 36, fontWeight: FontWeight.w900, color: green)),
+              const SizedBox(height: 10),
+              Text(failed
+                  ? 'Could not open LearnCodz. Please try again.'
+                  : 'Small steps. Big possibilities.'),
+              const SizedBox(height: 24),
+              if (failed)
+                FilledButton(onPressed: start, child: const Text('Retry'))
+              else
+                const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+            ]))),
+      );
 }
 
 class QuizQuest extends StatelessWidget {
@@ -41,7 +121,10 @@ class QuizQuest extends StatelessWidget {
   final bool skipOnboarding;
   final bool enableCloud;
   const QuizQuest(
-      {super.key, required this.prefs, this.skipOnboarding = false, this.enableCloud = false});
+      {super.key,
+      required this.prefs,
+      this.skipOnboarding = false,
+      this.enableCloud = false});
   @override
   Widget build(BuildContext context) => MaterialApp(
       title: 'LearnCodz',
@@ -52,6 +135,42 @@ class QuizQuest extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              titleTextStyle: TextStyle(
+                  fontFamily: 'Roboto',
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: ink)),
+          inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xFFF5F7FA),
+              contentPadding: const EdgeInsets.all(18),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: green, width: 1.5))),
+          chipTheme: ChipThemeData(
+              backgroundColor: const Color(0xFFF4F6F8),
+              selectedColor: const Color(0xFFE9F5DD),
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7)),
+          dialogTheme: DialogTheme(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24))),
+          bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent),
           navigationBarTheme: NavigationBarThemeData(
               iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
                   color: states.contains(WidgetState.selected)
@@ -59,15 +178,20 @@ class QuizQuest extends StatelessWidget {
                       : const Color(0xFF83838B))),
               labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
                   fontSize: 10,
-                  fontWeight:
-                      states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w500,
+                  fontWeight: states.contains(WidgetState.selected)
+                      ? FontWeight.w800
+                      : FontWeight.w500,
                   color: states.contains(WidgetState.selected) ? green : const Color(0xFF62626A)))),
           scaffoldBackgroundColor: paper,
           colorScheme: ColorScheme.fromSeed(seedColor: green, primary: green, surface: Colors.white),
           textTheme: const TextTheme(headlineLarge: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -1.2, color: ink), headlineSmall: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: ink), titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ink), bodyMedium: TextStyle(fontSize: 15, height: 1.6, color: ink)),
           filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(minimumSize: const Size(48, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)))),
           cardTheme: CardTheme(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)))),
-      home: enableCloud ? CloudGate(child: () => LaunchScreen(prefs: prefs, dashboard: () => Dashboard(prefs: prefs))) : skipOnboarding ? Dashboard(prefs: prefs) : LaunchScreen(prefs: prefs, dashboard: () => Dashboard(prefs: prefs)));
+      home: enableCloud
+          ? CloudGate(child: () => LaunchScreen(prefs: prefs, showSplash: false, dashboard: () => Dashboard(prefs: prefs)))
+          : skipOnboarding
+              ? Dashboard(prefs: prefs)
+              : LaunchScreen(prefs: prefs, dashboard: () => Dashboard(prefs: prefs)));
 }
 
 String dayKey(DateTime day) =>
@@ -83,13 +207,84 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   late LearningData learning;
   final reminders = ReminderService();
+  final refreshControl = GlobalKey<QuestPullRefreshState>();
+  Future<void> refreshProgress() async {
+    await learning.save();
+    final cloud = CloudProgress.instance;
+    if (cloud != null && cloud.uid != null) {
+      await cloud.sync();
+      if (mounted &&
+          (cloud.conflict || cloud.status.startsWith('Cloud unavailable'))) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(cloud.status)));
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  Widget refreshButton() => IconButton(
+      tooltip: 'Refresh progress',
+      onPressed: () => refreshControl.currentState?.show(),
+      icon: const Icon(Icons.refresh_rounded, color: green));
   Timer? learningTimer;
   bool foreground = true;
   int tab = 0;
   String filter = 'All lessons';
+  bool showAllMastery = false;
   late Map<String, int> scores;
-  late Set<String> days, daily, mistakes;
+  late Set<String> days, daily, mistakes, quizRewards;
   bool saveFailed = false;
+  late Set<String> knownAchievements;
+  static const _flameDayKey = 'web.streakFlameDay';
+  bool _checkingFlame = false;
+
+  Future<void> _showDailyFlame() async {
+    if (!kIsWeb || !mounted || _checkingFlame) return;
+    final today = dayKey(DateTime.now());
+    final previous = widget.prefs.getString(_flameDayKey);
+    if (previous == today) return;
+    _checkingFlame = true;
+    try {
+      final saved = await widget.prefs.setString(_flameDayKey, today);
+      if (!saved ||
+          !mounted ||
+          (previous == null && !days.any((day) => day.compareTo(today) < 0))) {
+        return;
+      }
+      final current = streak;
+      await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+                title: const Text('Welcome back!', textAlign: TextAlign.center),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const QuestLottie(
+                      animation: QuestAnimation.flame, size: 112, repeat: true),
+                  const SizedBox(height: 16),
+                  Text(
+                      current > 0
+                          ? '$current-day streak'
+                          : 'Ready for a fresh streak?',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text(
+                      days.contains(today)
+                          ? 'You’ve already learned today. Keep it going!'
+                          : 'Finish a learning activity today to keep the flame going.',
+                      textAlign: TextAlign.center),
+                ]),
+                actions: [
+                  FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Keep learning'))
+                ],
+              ));
+    } finally {
+      _checkingFlame = false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -119,12 +314,25 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     mistakes = (widget.prefs.getStringList('mistakes') ?? []).toSet();
     days = (widget.prefs.getStringList('days') ?? []).toSet();
     daily = (widget.prefs.getStringList('daily') ?? []).toSet();
+    quizRewards = (widget.prefs.getStringList('quizRewards') ?? []).toSet();
+    knownAchievements = {
+      ...achievementsFor(widget.prefs)
+          .where((a) => a.earned)
+          .map((a) => a.title),
+      ...widget.prefs.getStringList('seenAchievements') ?? []
+    };
+    if (kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showDailyFlame());
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     foreground = state == AppLifecycleState.resumed;
     SoundEffects.instance.setActive(foreground);
+    if (foreground && kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showDailyFlame());
+    }
     if (!foreground) {
       learning.save();
       SoundEffects.instance.stop();
@@ -139,12 +347,6 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
     learning.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  Future<void> profile() async {
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => ProfilePage(prefs: widget.prefs)));
-    if (mounted) setState(() {});
   }
 
   void switchLanguage() => Navigator.push(
@@ -172,29 +374,68 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 label: Text(
                     '${activeLanguage == null ? 'Dart (legacy)' : languageName(activeLanguage!)} · Switch'),
                 onPressed: switchLanguage),
-            if ((widget.prefs.getString('profileName') ?? '').trim().isEmpty ||
-                (widget.prefs.getString('profileEmail') ?? '').trim().isEmpty)
-              ActionChip(
-                  avatar: const Icon(Icons.account_circle_outlined, size: 18),
-                  label: Text(widget.prefs
-                              .getString('profileName')
-                              ?.trim()
-                              .isNotEmpty ==
-                          true
-                      ? widget.prefs.getString('profileName')!
-                      : 'Edit profile'),
-                  onPressed: profile),
           ]));
   String get dailyKey =>
       '${activeLanguage?.name ?? 'dart'}:${dayKey(DateTime.now())}';
-  void toolkit() => Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => LearningHub(
-              data: learning,
-              reminders: reminders,
-              openLesson: openLesson,
-              openLab: codingLab)));
+  void toolkit() async {
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => LearningHub(
+                data: learning, reminders: reminders, openLesson: openLesson)));
+    if (!mounted) return;
+    await learning.save();
+    await celebrateAchievements();
+  }
+
+  Future<void> celebrateAchievements() async {
+    if (!mounted) return;
+    final fresh = achievementsFor(widget.prefs)
+        .where((a) => a.earned && !knownAchievements.contains(a.title))
+        .toList();
+    if (fresh.isEmpty) return;
+    knownAchievements.addAll(fresh.map((a) => a.title));
+    await widget.prefs
+        .setStringList('seenAchievements', knownAchievements.toList());
+    if (!mounted) return;
+    SoundEffects.instance.play(SoundCue.achievement);
+    final medal = fresh.first;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF173D38),
+        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        content: QuestEntrance(
+            child: Row(children: [
+          const QuestLottie(animation: QuestAnimation.celebrate, size: 54),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('NEW ACHIEVEMENT',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFFB7E28F),
+                        letterSpacing: 1.2)),
+                Text(medal.title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17)),
+                if (fresh.length > 1)
+                  Text('+${fresh.length - 1} more unlocked',
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12))
+              ]))
+        ])),
+        action: SnackBarAction(
+            label: 'View',
+            textColor: const Color(0xFFB7E28F),
+            onPressed: openAchievements)));
+  }
+
   Future<void> codingLab([QuestionKind? kind]) async {
     final mode = await chooseQuizPreferences(context, widget.prefs);
     if (mode == null || !mounted) return;
@@ -214,11 +455,15 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                 onComplete: recordMistakes)));
     if (result != null && mounted) {
       setState(() => days.add(dayKey(DateTime.now())));
+      SoundEffects.instance.play(SoundCue.achievement);
       await persist();
     }
   }
 
-  int get xp => scores.values.fold(0, (a, b) => a + b * 20) + daily.length * 30;
+  int get xp =>
+      scores.values.fold(0, (a, b) => a + b * 20) +
+      daily.length * 30 +
+      quizRewards.length * 10;
   int get completed => lessons.where((l) => (scores[l.id] ?? 0) >= 2).length;
   int get streak {
     var day = DateTime.now();
@@ -240,10 +485,14 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         widget.prefs.setString('scores', jsonEncode(scores)),
         widget.prefs.setStringList('days', days.toList()),
         widget.prefs.setStringList('daily', daily.toList()),
-        widget.prefs.setStringList('mistakes', mistakes.toList())
+        widget.prefs.setStringList('mistakes', mistakes.toList()),
+        widget.prefs.setStringList('quizRewards', quizRewards.toList())
       ]);
       if (ok.any((v) => !v)) throw StateError('Storage unavailable');
-      if (mounted) setState(() => saveFailed = false);
+      if (mounted) {
+        setState(() => saveFailed = false);
+        await celebrateAchievements();
+      }
     } catch (_) {
       if (mounted) setState(() => saveFailed = true);
     }
@@ -265,6 +514,99 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         scores[lessons[i].id] = max(scores[lessons[i].id] ?? 0, result);
         days.add(dayKey(DateTime.now()));
       });
+      await persist();
+    }
+  }
+
+  Future<void> smartReview() async {
+    final selection = await Navigator.push<(Lesson, int)>(
+        context,
+        MaterialPageRoute(
+            builder: (reviewContext) => SmartReviewPage(
+                mastery: learning.mastery,
+                course: lessons,
+                unlocked: unlocked,
+                onReview: (lesson) => Navigator.pop(reviewContext, (lesson, 5)),
+                onSizedReview: (lesson, count) =>
+                    Navigator.pop(reviewContext, (lesson, count)))));
+    if (selection == null || !mounted) return;
+    final (chosen, count) = selection;
+    final pool = chosen.allQuestions.toList()..shuffle();
+    pool.sort((a, b) => (mistakes.contains(questionKey(b)) ? 1 : 0)
+        .compareTo(mistakes.contains(questionKey(a)) ? 1 : 0));
+    final result = await Navigator.push<int>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => QuizPage(
+                title: 'Smart Review · ${chosen.title}',
+                questions: pool.take(count).toList(),
+                labMode: true,
+                reviewMode: true,
+                autoAdvance: false,
+                avatar: widget.prefs.getInt('avatar') ?? 2,
+                onComplete: (answers) {
+                  learning.record(answers);
+                  setState(() {
+                    for (final answer in answers.entries) {
+                      if (answer.value) {
+                        mistakes.remove(questionKey(answer.key));
+                      } else {
+                        mistakes.add(questionKey(answer.key));
+                      }
+                    }
+                  });
+                })));
+    if (result != null && mounted) {
+      setState(() => days.add(dayKey(DateTime.now())));
+      await persist();
+    }
+  }
+
+  Future<void> quizArcade() async {
+    final chosen = await showModalBottomSheet<(Lesson, int)>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        backgroundColor: Colors.white,
+        constraints: const BoxConstraints(maxWidth: 620),
+        builder: (_) => ArcadePicker(unlocked: unlocked));
+    if (chosen == null || !mounted) return;
+    final pool = chosen.$1.allQuestions.toList()..shuffle();
+    var earnedXp = 0;
+    final result = await Navigator.push<int>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => QuizPage(
+                title: 'Quiz Arcade · ${chosen.$1.title}',
+                questions: pool.take(chosen.$2).toList(),
+                labMode: true,
+                autoAdvance: widget.prefs.getBool('autoAdvance') ?? true,
+                avatar: widget.prefs.getInt('avatar') ?? 2,
+                xpPreview: (answers) =>
+                    answers.entries
+                        .where((e) =>
+                            e.value &&
+                            !quizRewards.contains(questionKey(e.key)))
+                        .length *
+                    10,
+                onComplete: (answers) {
+                  earnedXp = answers.entries
+                          .where((e) =>
+                              e.value &&
+                              !quizRewards.contains(questionKey(e.key)))
+                          .length *
+                      10;
+                  recordMistakes(answers);
+                  setState(() {
+                    for (final e in answers.entries) {
+                      if (e.value) quizRewards.add(questionKey(e.key));
+                    }
+                  });
+                })));
+    if (result != null && mounted) {
+      setState(() => days.add(dayKey(DateTime.now())));
+      SoundEffects.instance
+          .play(earnedXp > 0 ? SoundCue.achievement : SoundCue.complete);
       await persist();
     }
   }
@@ -394,16 +736,19 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
 
   Widget brand() => const Row(children: [
         CircleAvatar(
-            backgroundColor: ink,
+            backgroundColor: green,
             radius: 19,
-            child: Icon(Icons.bolt_rounded, color: mint)),
+            child: Icon(Icons.code_rounded, color: Colors.white)),
         SizedBox(width: 10),
-        Text('LearnCodz',
-            style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
-                color: ink))
+        Flexible(
+            child: Text('LearnCodz',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                    color: ink)))
       ]);
   static const navLabels = [
     'Overview',
@@ -449,185 +794,365 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                                       i == 1 ? 'Learning path' : navLabels[i]),
                                   onTap: () => setState(() => tab = i)))),
                       const Spacer(),
-                      const Text('Zulkifal Khan & Jamal Khan',
-                          style: TextStyle(fontSize: 11, color: Colors.black45))
                     ])),
               Expanded(
-                  child: tab == 4
-                      ? ProfilePage(prefs: widget.prefs)
-                      : Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 900),
-                              child: ListView(
-                                  key: ValueKey('page-$tab'),
-                                  padding: EdgeInsets.all(wide ? 32 : 22),
-                                  children: [
-                                    if (tab == 0) ...[
-                                      Row(children: [
-                                        Expanded(child: brand()),
-                                        const Icon(
-                                            Icons.local_fire_department_rounded,
-                                            color: Color(0xFFFF7900)),
-                                        const SizedBox(width: 4),
-                                        Text('$streak',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w800))
-                                      ]),
-                                      const SizedBox(height: 24),
-                                      const Text('YOUR DAILY DOSE OF CURIOSITY',
-                                          style: TextStyle(
-                                              color: green,
-                                              fontSize: 11,
-                                              letterSpacing: .6,
-                                              fontWeight: FontWeight.w800)),
-                                      const SizedBox(height: 7),
-                                      Text('Small steps.\nBrighter thinking.',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .headlineLarge),
-                                      const SizedBox(height: 20),
-                                    ] else ...[
-                                      Text(
-                                          tab == 1
-                                              ? '${activeLanguage == null ? 'Your' : languageName(activeLanguage!)} Learning Path'
-                                              : tab == 2
-                                                  ? 'Practice'
-                                                  : 'Your Progress',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .headlineSmall),
-                                      const SizedBox(height: 12),
-                                    ],
-                                    if (saveFailed)
-                                      MaterialBanner(
-                                          content: const Text(
-                                              'Progress could not be saved.'),
-                                          actions: [
-                                            TextButton(
-                                                onPressed: persist,
-                                                child:
-                                                    const Text('Retry saving'))
+                  child: QuestPullRefresh(
+                      key: refreshControl,
+                      onRefresh: refreshProgress,
+                      avatar: widget.prefs.getInt('avatar') ?? 2,
+                      child: tab == 4
+                          ? profileHub()
+                          : Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 900),
+                                  child: ListView(
+                                      key: ValueKey('page-$tab'),
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      padding: EdgeInsets.all(wide ? 32 : 22),
+                                      children: [
+                                        if (tab == 0) ...[
+                                          Row(children: [
+                                            Expanded(child: brand()),
+                                            refreshButton(),
+                                            const Icon(
+                                                Icons
+                                                    .local_fire_department_rounded,
+                                                color: Color(0xFFFF7900)),
+                                            const SizedBox(width: 4),
+                                            Text('$streak',
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w800))
                                           ]),
-                                    if (tab == 0) ...overview(),
-                                    if (tab == 1) ...path(),
-                                    if (tab == 2) ...practicePage(),
-                                    if (tab == 3) ...progress(),
-                                    const SizedBox(height: 20),
-                                  ])))),
+                                          const SizedBox(height: 24),
+                                          Text(
+                                              'Hi, ${widget.prefs.getString('profileName')?.trim().isNotEmpty == true ? widget.prefs.getString('profileName') : 'coder'}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall),
+                                          const SizedBox(height: 8),
+                                          const Text(
+                                              'Continue your coding journey',
+                                              style: TextStyle(
+                                                  color: Colors.black54,
+                                                  fontSize: 16)),
+                                          const SizedBox(height: 24),
+                                        ] else ...[
+                                          Text(
+                                              tab == 1
+                                                  ? '${activeLanguage == null ? 'Your' : languageName(activeLanguage!)} Learning Path'
+                                                  : tab == 2
+                                                      ? 'Practice'
+                                                      : 'Your Progress',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .headlineSmall),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        if (saveFailed)
+                                          MaterialBanner(
+                                              content: const Text(
+                                                  'Progress could not be saved.'),
+                                              actions: [
+                                                TextButton(
+                                                    onPressed: persist,
+                                                    child: const Text(
+                                                        'Retry saving'))
+                                              ]),
+                                        if (tab == 0) ...overview(),
+                                        if (tab == 1) ...path(),
+                                        if (tab == 2) ...practicePage(),
+                                        if (tab == 3) ...progress(),
+                                        const SizedBox(height: 20),
+                                      ]))))),
             ])),
             bottomNavigationBar: wide
                 ? null
-                : DecoratedBox(
-                    decoration: const BoxDecoration(
-                        border:
-                            Border(top: BorderSide(color: Color(0xFFF0F0F4)))),
-                    child: NavigationBar(
-                        height: 68,
-                        backgroundColor: Colors.white,
-                        indicatorColor: Colors.transparent,
-                        labelBehavior:
-                            NavigationDestinationLabelBehavior.alwaysShow,
-                        selectedIndex: tab,
-                        onDestinationSelected: (i) => setState(() => tab = i),
-                        destinations: List.generate(
-                            5,
-                            (i) => NavigationDestination(
-                                icon: Icon(navIcons[i], size: 24),
-                                label: navLabels[i])))));
+                : QuestNavigation(
+                    selectedIndex: tab,
+                    labels: navLabels,
+                    icons: navIcons,
+                    onSelected: (i) => setState(() => tab = i)));
       });
   List<Widget> practicePage() => [
-        const Text('Sharpen your skills with\nhands-on activities.',
-            style: TextStyle(fontSize: 16, color: Color(0xFF62626B))),
-        const SizedBox(height: 24),
         PracticeTile(
-            title: 'Code Playground',
-            subtitle: 'Write and run code — setup included',
-            icon: Icons.play_circle_outline,
-            color: questGreen,
+            illustrated: true,
+            title: 'Coding Missions',
+            subtitle: 'Build a mini project · hints & test cases',
+            icon: Icons.rocket_launch_rounded,
+            color: const Color(0xFF288CB3),
             onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => CodeRunnerPage(prefs: widget.prefs)))),
+                    builder: (_) => MissionsPage(prefs: widget.prefs)))),
         PracticeTile(
-            title: 'Predict the Output',
-            subtitle: 'What will this code print?',
-            icon: Icons.code,
-            color: const Color(0xFF9362E7),
-            onTap: () => codingLab(QuestionKind.output)),
-        PracticeTile(
-            title: 'Fill in the Missing Code',
-            subtitle: 'Complete the code snippets',
-            icon: Icons.extension_rounded,
-            color: const Color(0xFFFF9B00),
-            onTap: () => codingLab(QuestionKind.blank)),
-        PracticeTile(
-            title: 'Arrange Code Lines',
-            subtitle: 'Put the lines in the correct order',
-            icon: Icons.sort_rounded,
-            color: const Color(0xFF16ACE5),
-            onTap: () => codingLab(QuestionKind.order)),
-        PracticeTile(
-            title: 'Find the Bugs',
-            subtitle: 'Spot and understand the errors',
-            icon: Icons.bug_report_rounded,
-            color: const Color(0xFFFF4D87),
-            onTap: () => codingLab(QuestionKind.bug)),
-        const SizedBox(height: 12),
+            illustrated: true,
+            title: 'Smart Review',
+            subtitle: 'Revisit due topics · strengthen your memory',
+            icon: Icons.psychology_alt_outlined,
+            color: const Color(0xFF8870CD),
+            onTap: smartReview),
+        const Text('Sharpen your skills with hands-on activities.',
+            style: TextStyle(fontSize: 16, color: Color(0xFF62626B))),
+        const SizedBox(height: 24),
+        LayoutBuilder(
+            builder: (context, constraints) => GridView(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: constraints.maxWidth > 650 ? 3 : 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        mainAxisExtent: 215 *
+                            max(1.0,
+                                MediaQuery.textScalerOf(context).scale(1))),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      PracticeTile(
+                          grid: true,
+                          title: 'Quiz Arcade',
+                          subtitle: '5 or 10 questions · earn fresh-answer XP',
+                          icon: Icons.sports_esports_rounded,
+                          color: questGreen,
+                          onTap: quizArcade),
+                      PracticeTile(
+                          grid: true,
+                          title: 'Code Playground',
+                          subtitle: 'Write and run code — setup included',
+                          icon: Icons.terminal_rounded,
+                          color: questBlue,
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      CodeRunnerPage(prefs: widget.prefs)))),
+                      PracticeTile(
+                          grid: true,
+                          title: 'Predict the Output',
+                          subtitle: 'What will this code print?',
+                          icon: Icons.code,
+                          color: const Color(0xFF9362E7),
+                          onTap: () => codingLab(QuestionKind.output)),
+                      PracticeTile(
+                          grid: true,
+                          title: 'Fill in the Missing Code',
+                          subtitle: 'Complete the code snippets',
+                          icon: Icons.extension_rounded,
+                          color: const Color(0xFFFF9B00),
+                          onTap: () => codingLab(QuestionKind.blank)),
+                      PracticeTile(
+                          grid: true,
+                          title: 'Arrange Code Lines',
+                          subtitle: 'Put the lines in the correct order',
+                          icon: Icons.sort_rounded,
+                          color: const Color(0xFF16ACE5),
+                          onTap: () => codingLab(QuestionKind.order)),
+                      PracticeTile(
+                          grid: true,
+                          title: 'Find the Bugs',
+                          subtitle: 'Spot and understand the errors',
+                          icon: Icons.bug_report_rounded,
+                          color: const Color(0xFFFF4D87),
+                          onTap: () => codingLab(QuestionKind.bug)),
+                    ])),
+        const SizedBox(height: 20),
         mistakesCard(),
-        PracticeTile(
-            title: 'Daily challenge',
-            subtitle: 'Five mixed questions · +30 XP',
-            icon: Icons.bolt,
-            color: const Color(0xFFFFB900),
-            onTap: challenge),
       ];
+  void openAchievements() => Navigator.push(context,
+      MaterialPageRoute(builder: (_) => AchievementRoom(prefs: widget.prefs)));
   List<Widget> overview() {
     final next = lessons.indexWhere((l) => (scores[l.id] ?? 0) < 2);
+    final lesson = lessons[next < 0 ? 0 : next];
+    final todayPassed = days.contains(dayKey(DateTime.now()));
     return [
-      languageBar(),
-      QuestEntrance(
-          child: Row(children: [
-        QuestBuddy(avatar: widget.prefs.getInt('avatar') ?? 2, size: 84),
-        const SizedBox(width: 12),
-        Expanded(
-            child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFF6F5FA),
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text(
-                    'Ready for today’s\nchallenge${(widget.prefs.getString('profileName') ?? '').isEmpty ? '' : ', ${widget.prefs.getString('profileName')}'}?',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 15))))
-      ])),
-      const SizedBox(height: 24),
-      QuestHero(
-          title: next < 0
-              ? 'Your next adventure\nis waiting.'
-              : 'Your next big idea\nstarts here.',
-          action:
-              next < 0 ? 'Review a lesson' : 'Start: ${lessons[next].title}',
-          onStart: () => openLesson(next < 0 ? 0 : next)),
-      const SizedBox(height: 24),
-      QuestStats(
-          xp: xp, streak: streak, completed: completed, total: lessons.length),
+      JourneyCard(
+          title: lesson.title.split(' · ').last,
+          language:
+              activeLanguage == null ? 'Dart' : languageName(activeLanguage!),
+          completed: completed,
+          total: lessons.length,
+          avatar: widget.prefs.getInt('avatar') ?? 2,
+          onTap: () => openLesson(next < 0 ? 0 : next)),
       const SizedBox(height: 20),
-      PracticeTile(
-          title: 'Continue your learning path',
-          subtitle: '${lessons.length} chapters. Three stages. Real progress.',
-          icon: Icons.menu_book_rounded,
-          color: green,
-          onTap: () => setState(() => tab = 1)),
-      PracticeTile(
-          title: 'Learning toolkit · Goals, bookmarks & coding',
-          subtitle: 'Your daily mission, pocket library and reminders',
-          icon: Icons.auto_awesome_rounded,
-          color: questBlue,
-          onTap: toolkit),
-      mistakesCard(),
+      Row(children: [
+        Expanded(
+            child:
+                HomeStat(label: 'Day streak', value: '$streak', streak: true)),
+        const SizedBox(width: 12),
+        Expanded(child: HomeStat(label: 'XP earned', value: '$xp'))
+      ]),
+      const SizedBox(height: 24),
+      Row(children: [
+        const Expanded(
+            child: Text('Daily Goal',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+        TextButton(onPressed: toolkit, child: const Text('Adjust goal'))
+      ]),
+      AnimatedBuilder(
+          animation: learning,
+          builder: (context, _) => Column(children: [
+                DailyMissionRow(
+                    title: 'Learn something today',
+                    done: todayPassed,
+                    icon: Icons.auto_stories_outlined,
+                    onTap: () => openLesson(next < 0 ? 0 : next)),
+                DailyMissionRow(
+                    title: 'Complete today’s challenge',
+                    done: daily.contains(dailyKey),
+                    icon: Icons.bolt_rounded,
+                    onTap: challenge),
+                DailyMissionRow(
+                    title: 'Study for ${learning.goal} minutes',
+                    done: learning.todaySeconds >= learning.goal * 60,
+                    icon: Icons.timelapse_rounded,
+                    onTap: toolkit),
+              ])),
+      const SizedBox(height: 20),
+      if (scores.isEmpty)
+        PracticeTile(
+            title: 'New here? Try the demo',
+            subtitle: 'Take a quick tour and answer a sample question',
+            icon: Icons.play_circle_rounded,
+            illustrated: true,
+            color: questBlue,
+            onTap: openDemo),
+      languageBar(),
+      achievementPreview(),
     ];
   }
+
+  Widget goalRow(String title, bool done, VoidCallback onTap) => ListTile(
+      onTap: onTap,
+      leading: Icon(
+          done
+              ? Icons.check_box_rounded
+              : Icons.check_box_outline_blank_rounded,
+          color: done ? green : Colors.grey),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      trailing: const Icon(Icons.chevron_right, size: 18));
+  Widget achievementPreview() {
+    final all = achievementsFor(widget.prefs);
+    final earned = all.where((a) => a.earned).toList();
+    final picks = [
+      ...earned.take(3),
+      ...all.where((a) => !a.earned).take(4 - min(3, earned.length))
+    ];
+    return Column(children: [
+      Row(children: [
+        const Expanded(
+            child: Text('Achievements',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+        TextButton(onPressed: openAchievements, child: const Text('See All'))
+      ]),
+      const SizedBox(height: 12),
+      Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: picks
+              .map((a) => Expanded(
+                  child: InkWell(
+                      onTap: openAchievements,
+                      child: AchievementMedal(achievement: a))))
+              .toList()),
+      const SizedBox(height: 24)
+    ]);
+  }
+
+  void openDemo() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => const LearningDemo()));
+
+  Widget profileHub() => Center(
+      child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24),
+              children: [
+                Row(children: [
+                  Expanded(
+                      child: Text('Profile',
+                          style: Theme.of(context).textTheme.headlineSmall)),
+                  refreshButton()
+                ]),
+                const SizedBox(height: 28),
+                Center(
+                    child: QuestBuddy(
+                        avatar: widget.prefs.getInt('avatar') ?? 2, size: 112)),
+                const SizedBox(height: 16),
+                Text(widget.prefs.getString('profileName') ?? 'Your profile',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.mail_outline, size: 18),
+                  const SizedBox(width: 8),
+                  Flexible(
+                      child: Text(
+                          widget.prefs.getString('profileEmail') ??
+                              'Personalize your profile',
+                          overflow: TextOverflow.ellipsis))
+                ]),
+                const SizedBox(height: 24),
+                ProgressSummary(
+                    key: ValueKey(
+                        'progress-ring-${activeLanguage?.name ?? 'legacy'}'),
+                    passed: completed,
+                    total: lessons.length,
+                    xp: xp,
+                    streak: streak),
+                Container(
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE9E9EF))),
+                    child: Column(children: [
+                      ListTile(
+                          leading: const Icon(Icons.person_outline),
+                          title: const Text('Edit Profile'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        ProfilePage(prefs: widget.prefs)));
+                            if (mounted) setState(() {});
+                          }),
+                      const Divider(height: 1),
+                      ListTile(
+                          leading: const Icon(Icons.track_changes),
+                          title: const Text('Learning Goals & Bookmarks'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: toolkit),
+                      const Divider(height: 1),
+                      ListTile(
+                          leading: const Icon(Icons.emoji_events_outlined),
+                          title: const Text('Achievements'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: openAchievements),
+                      const Divider(height: 1),
+                      ListTile(
+                          leading: const Icon(Icons.play_circle_outline),
+                          title: const Text('LearnCodz Demo'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: openDemo),
+                      const Divider(height: 1),
+                      ListTile(
+                          leading: const Icon(Icons.settings_outlined),
+                          title: const Text('App Settings'),
+                          subtitle: const Text('Account, sound and reminders'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => AppSettingsPage(
+                                      prefs: widget.prefs,
+                                      onReminders: toolkit,
+                                      onReset: reset)))),
+                    ])),
+                const SizedBox(height: 28),
+              ])));
 
   Widget stat(String label, String value, IconData icon, Color color) =>
       Container(
@@ -644,6 +1169,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
             Text(label, style: const TextStyle(fontSize: 12))
           ]));
   List<Widget> path() => [
+        FeatureBanner(
+            eyebrow: 'ONE CHAPTER AT A TIME',
+            title: 'Your road to code.',
+            subtitle:
+                '$completed of ${lessons.length} chapters passed. Your next win is waiting.',
+            icon: Icons.route_rounded),
         Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -718,7 +1249,17 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     ])))));
   }
 
+  String get codingLabTopic => activeLanguage == null
+      ? 'Coding lab'
+      : '${languageName(activeLanguage!)} · Coding lab';
   List<Widget> progress() => [
+        const FeatureBanner(
+            eyebrow: 'LOOK HOW FAR YOU’VE COME',
+            title: 'Every step adds up.',
+            subtitle:
+                'Explore your strengths, grow your skills and collect your next medal.',
+            icon: Icons.insights_rounded,
+            color: Color(0xFF8870CD)),
         Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -734,15 +1275,31 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
                     }))
                 .toList()),
         ProgressSummary(
-            passed: completed, total: lessons.length, xp: xp, streak: streak),
+            key: ValueKey('progress-ring-${activeLanguage?.name ?? 'legacy'}'),
+            passed: completed,
+            total: lessons.length,
+            xp: xp,
+            streak: streak),
         const Divider(color: Color(0xFFECECF2)),
         const SizedBox(height: 18),
-        const Text('Topic Mastery',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        Row(children: [
+          const Expanded(
+              child: Text('Topic Mastery',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
+          TextButton(
+              onPressed: () => setState(() => showAllMastery = !showAllMastery),
+              child: Text(showAllMastery ? 'Show less' : 'See All'))
+        ]),
         const SizedBox(height: 18),
-        ...lessons.map((l) {
-          final data =
-              Map<String, dynamic>.from(learning.mastery[l.title] ?? {});
+        ...(showAllMastery
+                ? [
+                    ...lessons.map((l) => l.title),
+                    if (learning.mastery.containsKey(codingLabTopic))
+                      codingLabTopic
+                  ]
+                : lessons.take(5).map((l) => l.title))
+            .map((topic) {
+          final data = Map<String, dynamic>.from(learning.mastery[topic] ?? {});
           final attempts = (data['attempts'] as num?)?.toInt() ?? 0,
               correct = (data['correct'] as num?)?.toInt() ?? 0;
           final rate = attempts == 0 ? 0.0 : correct / attempts;
@@ -751,7 +1308,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               child: Row(children: [
                 Expanded(
                     flex: 4,
-                    child: Text(l.title.split(' · ').last,
+                    child: Text(topic.split(' · ').last,
                         style: const TextStyle(fontSize: 13))),
                 const SizedBox(width: 12),
                 Expanded(
@@ -774,22 +1331,8 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
               ]));
         }),
         const SizedBox(height: 12),
-        Wrap(spacing: 10, runSpacing: 10, children: [
-          badge('First steps', 'Pass one lesson', Icons.eco, completed >= 1),
-          badge('Path finder', 'Pass every lesson', Icons.school,
-              completed == lessons.length)
-        ]),
+        achievementPreview(),
         const SizedBox(height: 24),
-        PracticeTile(
-            title: 'Open learning toolkit',
-            subtitle: 'Daily goals, saved lessons and reminders',
-            icon: Icons.auto_awesome,
-            color: questBlue,
-            onTap: toolkit),
-        OutlinedButton.icon(
-            onPressed: reset,
-            icon: const Icon(Icons.restart_alt),
-            label: const Text('Reset my progress')),
       ];
   Widget badge(String title, String subtitle, IconData icon, bool earned) =>
       Container(
@@ -815,7 +1358,7 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         builder: (c) => AlertDialog(
                 title: const Text('Start a fresh chapter?'),
                 content: const Text(
-                    'This removes your scores, saved mistakes, streak and daily challenge history on this device.'),
+                    'This clears scores, XP, streaks, reviews, saved mistakes, bookmarks, study history and daily challenges. Your profile is kept. Signed-in progress will sync after the reset.'),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(c, false),
@@ -830,8 +1373,12 @@ class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
         days.clear();
         daily.clear();
         mistakes.clear();
+        quizRewards.clear();
         learning.reset();
       });
+      knownAchievements.clear();
+      await widget.prefs.setStringList('seenAchievements', []);
+      await widget.prefs.setStringList('missionCompletions', []);
       await persist();
     }
   }
@@ -877,18 +1424,89 @@ class LessonPage extends StatelessWidget {
                     style:
                         const TextStyle(fontSize: 17, color: Colors.black54)),
                 const SizedBox(height: 28),
-                ...lesson.sections.map((s) => Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: Column(
+                ContentPicture(
+                    url: lesson.imageUrl,
+                    description: lesson.imageDescription,
+                    fallback: LessonIllustration(
+                        label: activeLanguage == null
+                            ? 'Code'
+                            : languageName(activeLanguage!))),
+                ...lesson.sections.indexed.map((entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 28),
+                    child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s.$1,
-                              style: Theme.of(context).textTheme.headlineSmall),
-                          const SizedBox(height: 10),
-                          Text(s.$2,
-                              style: const TextStyle(fontSize: 17, height: 1.8))
+                          Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFEDF8E5),
+                                  borderRadius: BorderRadius.circular(16)),
+                              child: Icon(
+                                  [
+                                    Icons.layers_outlined,
+                                    Icons.keyboard_return,
+                                    Icons.lightbulb_outline
+                                  ][entry.$1 % 3],
+                                  color: green)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(entry.$2.$1,
+                                    style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 8),
+                                Text(entry.$2.$2,
+                                    style: const TextStyle(
+                                        fontSize: 16, height: 1.7))
+                              ]))
                         ]))),
+                if (!lesson.sections.any(
+                    (section) => section.$1.toLowerCase().contains('task')))
+                  Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9E6),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(children: [
+                              Icon(Icons.track_changes, color: green),
+                              SizedBox(width: 10),
+                              Text('Your mini task',
+                                  style: TextStyle(
+                                      fontSize: 21,
+                                      fontWeight: FontWeight.w800,
+                                      color: green))
+                            ]),
+                            const SizedBox(height: 12),
+                            const Text(
+                                'Read the example below. Predict what it does, then change one value or line and explain what would happen.',
+                                style: TextStyle(fontSize: 16, height: 1.6))
+                          ])),
                 CodePanel(code: lesson.code),
+                if (learning != null && activeLanguage != null) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                      icon: const Icon(Icons.terminal_rounded),
+                      label: const Text('Try this code'),
+                      onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => CodeRunnerPage(
+                                  prefs: learning!.prefs,
+                                  initialLanguage: activeLanguage,
+                                  initialCode: runnableLessonCode(
+                                      activeLanguage!,
+                                      lesson.id.split(':').last,
+                                      lesson.code),
+                                  sourceId:
+                                      'lesson.${lesson.id.split(':').last}'))))
+                ],
                 const SizedBox(height: 24),
                 const Text(
                     'Ready to put it into practice?\nAnswer 2 of 3 correctly to unlock the next chapter.'),
@@ -926,10 +1544,12 @@ class QuizPage extends StatefulWidget {
   final bool timed;
   final bool practiceMode;
   final bool labMode;
+  final bool reviewMode;
   final bool dailyChallenge;
   final bool autoAdvance;
   final int avatar;
   final ValueChanged<Map<Question, bool>>? onComplete;
+  final int Function(Map<Question, bool>)? xpPreview;
   const QuizPage(
       {super.key,
       required this.title,
@@ -937,10 +1557,12 @@ class QuizPage extends StatefulWidget {
       this.timed = false,
       this.practiceMode = false,
       this.labMode = false,
+      this.reviewMode = false,
       this.dailyChallenge = false,
       this.autoAdvance = false,
       this.avatar = 0,
-      this.onComplete});
+      this.onComplete,
+      this.xpPreview});
   @override
   State<QuizPage> createState() => _QuizPageState();
 }
@@ -953,6 +1575,8 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
   int index = 0, score = 0, remaining = 30;
   int? selected;
   List<int> order = [];
+  late List<int> displayedOptions;
+  final questionLayout = QuestionLayout();
   bool checked = false, finished = false, timedOut = false, leaving = false;
   final Map<Question, bool> answers = {};
   Timer? timer;
@@ -966,6 +1590,7 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
   }
 
   void setupQuestion() {
+    displayedOptions = questionLayout.optionsFor(widget.questions[index]);
     order = List.generate(widget.questions[index].options.length, (i) => i);
     if (widget.questions[index].kind == QuestionKind.order) {
       selected = orderCorrect ? widget.questions[index].answer : -1;
@@ -1149,211 +1774,207 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
       });
   Widget question() {
     final q = widget.questions[index];
-    return ListView(padding: const EdgeInsets.all(24), children: [
-      Row(children: [
-        Text('QUESTION ${index + 1} OF ${widget.questions.length}',
-            style: const TextStyle(
-                color: green,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.3)),
-        const Spacer(),
-        if (widget.timed)
-          Text('${remaining}s',
-              style: TextStyle(
-                  color: remaining < 10 ? Colors.red : green,
-                  fontWeight: FontWeight.bold))
-      ]),
-      const SizedBox(height: 14),
-      ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: QuestProgress(value: (index + 1) / widget.questions.length)),
-      const SizedBox(height: 32),
-      if (q.kind != QuestionKind.choice)
-        Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(children: [
-              Icon(
-                  q.kind == QuestionKind.bug
-                      ? Icons.bug_report_rounded
-                      : q.kind == QuestionKind.order
-                          ? Icons.swap_vert_rounded
-                          : q.kind == QuestionKind.output
-                              ? Icons.terminal_rounded
-                              : Icons.extension_rounded,
-                  color: questBlue),
-              const SizedBox(width: 8),
-              Text(
-                  {
-                    QuestionKind.output: 'OUTPUT DETECTIVE',
-                    QuestionKind.blank: 'FILL THE GAP',
-                    QuestionKind.order: 'CODE SHUFFLE',
-                    QuestionKind.bug: 'BUG HUNT'
-                  }[q.kind]!,
-                  style: const TextStyle(
-                      color: questBlue,
-                      letterSpacing: 1,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900))
-            ])),
-      QuestEntrance(
-          key: ValueKey('question-$index'),
-          child:
-              Text(q.prompt, style: Theme.of(context).textTheme.headlineSmall)),
-      const SizedBox(height: 12),
-      if (q.kind == QuestionKind.order)
-        const Text('Put the lines in the right order. No rush.'),
-      const SizedBox(height: 16),
-      if (q.code != null)
-        Padding(
-            padding: const EdgeInsets.only(bottom: 18),
-            child: CodePanel(code: q.code!)),
-      if (q.kind == QuestionKind.order) ...[
-        const Text('Drag the handle or use arrows to reorder the lines.'),
-        ReorderableListView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: false,
-          onReorder: (oldIndex, newIndex) {
-            if (checked) return;
-            setState(() {
-              if (newIndex > oldIndex) newIndex--;
-              final item = order.removeAt(oldIndex);
-              order.insert(newIndex, item);
-              selected = orderCorrect ? q.answer : -1;
-            });
-          },
-          children: List.generate(
-              order.length,
-              (position) => Card(
-                  key: ValueKey('line-${order[position]}'),
-                  child: ListTile(
-                      leading: checked
-                          ? const Icon(Icons.code)
-                          : ReorderableDragStartListener(
-                              index: position,
-                              child: const Icon(Icons.drag_handle)),
-                      title: Text(q.options[order[position]],
-                          style: const TextStyle(fontFamily: 'monospace')),
-                      trailing: SizedBox(
-                          width: 96,
-                          child: Row(children: [
-                            IconButton(
-                                tooltip: 'Move line up',
-                                onPressed: checked || position == 0
-                                    ? null
-                                    : () => moveLine(position, -1),
-                                icon: const Icon(Icons.arrow_upward, size: 18)),
-                            IconButton(
-                                tooltip: 'Move line down',
-                                onPressed:
-                                    checked || position == order.length - 1
-                                        ? null
-                                        : () => moveLine(position, 1),
-                                icon:
-                                    const Icon(Icons.arrow_downward, size: 18))
-                          ]))))),
-        ),
-      ],
-      if (q.kind != QuestionKind.order)
-        ...List.generate(q.options.length, (i) {
-          final correct = checked && i == q.answer;
-          final wrong = checked && i == selected && !correct;
-          final active = selected == i;
-          return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Semantics(
-                  selected: active,
-                  button: true,
-                  child: Material(
-                      color: correct
-                          ? const Color(0xFFEAF8D8)
-                          : wrong
-                              ? const Color(0xFFFFE1DB)
-                              : active
-                                  ? const Color(0xFFEAF8D8)
-                                  : Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(
-                              color: active || correct
-                                  ? green
-                                  : const Color(0xFFE3E7DE),
-                              width: active ? 2 : 1)),
-                      child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: checked
-                              ? null
-                              : () {
-                                  SoundEffects.instance.play(SoundCue.tap);
-                                  setState(() => selected = i);
-                                },
-                          child: Padding(
-                              padding: const EdgeInsets.all(12),
+    return ListView(
+        key: ValueKey('quiz-question-$index'),
+        padding: const EdgeInsets.all(24),
+        children: [
+          Row(children: [
+            Text('QUESTION ${index + 1} OF ${widget.questions.length}',
+                style: const TextStyle(
+                    color: green,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.3)),
+            const Spacer(),
+            if (widget.timed)
+              Text('${remaining}s',
+                  style: TextStyle(
+                      color: remaining < 10 ? Colors.red : green,
+                      fontWeight: FontWeight.bold))
+          ]),
+          const SizedBox(height: 14),
+          ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child:
+                  QuestProgress(value: (index + 1) / widget.questions.length)),
+          const SizedBox(height: 32),
+          if (q.kind != QuestionKind.choice)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(children: [
+                  Icon(
+                      q.kind == QuestionKind.bug
+                          ? Icons.bug_report_rounded
+                          : q.kind == QuestionKind.order
+                              ? Icons.swap_vert_rounded
+                              : q.kind == QuestionKind.output
+                                  ? Icons.terminal_rounded
+                                  : Icons.extension_rounded,
+                      color: questBlue),
+                  const SizedBox(width: 8),
+                  Text(
+                      {
+                        QuestionKind.output: 'OUTPUT DETECTIVE',
+                        QuestionKind.blank: 'FILL THE GAP',
+                        QuestionKind.order: 'CODE SHUFFLE',
+                        QuestionKind.bug: 'BUG HUNT'
+                      }[q.kind]!,
+                      style: const TextStyle(
+                          color: questBlue,
+                          letterSpacing: 1,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900))
+                ])),
+          QuestEntrance(
+              key: ValueKey('question-$index'),
+              child: Text(q.prompt,
+                  style: Theme.of(context).textTheme.headlineSmall)),
+          const SizedBox(height: 12),
+          if (q.kind == QuestionKind.order)
+            const Text('Put the lines in the right order. No rush.'),
+          const SizedBox(height: 16),
+          if (q.imageUrl != null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: ContentPicture(
+                    url: q.imageUrl, description: q.imageDescription)),
+          if (q.code != null)
+            Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: CodePanel(code: q.code!)),
+          if (q.kind == QuestionKind.order) ...[
+            const Text('Drag the handle or use arrows to reorder the lines.'),
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              onReorder: (oldIndex, newIndex) {
+                if (checked) return;
+                setState(() {
+                  if (newIndex > oldIndex) newIndex--;
+                  final item = order.removeAt(oldIndex);
+                  order.insert(newIndex, item);
+                  selected = orderCorrect ? q.answer : -1;
+                });
+              },
+              children: List.generate(
+                  order.length,
+                  (position) => Card(
+                      key: ValueKey('line-${order[position]}'),
+                      child: ListTile(
+                          leading: checked
+                              ? const Icon(Icons.code)
+                              : ReorderableDragStartListener(
+                                  index: position,
+                                  child: const Icon(Icons.drag_handle)),
+                          title: Text(q.options[order[position]],
+                              style: const TextStyle(fontFamily: 'monospace')),
+                          trailing: SizedBox(
+                              width: 96,
                               child: Row(children: [
-                                Text('',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        color: green)),
-                                const SizedBox(width: 16),
-                                Expanded(child: Text(q.options[i])),
-                                if (correct)
-                                  const Icon(Icons.check_circle, color: green),
-                                if (wrong)
-                                  const Icon(Icons.cancel_outlined,
-                                      color: Colors.red)
-                              ]))))));
-        }),
-      if (checked)
-        QuestEntrance(
-            key: ValueKey(index),
-            shake: !timedOut && selected != q.answer,
-            child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                    color: const Color(0xFFEAF0E1),
-                    borderRadius: BorderRadius.circular(18)),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          timedOut
-                              ? 'Time is up. Here is the idea.'
-                              : selected == q.answer
-                                  ? 'You got it!'
-                                  : 'A good moment to learn.',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, color: green)),
-                      const SizedBox(height: 8),
-                      Text(q.explanation)
-                    ]))),
-      if (checked)
-        Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(children: [
-              Expanded(
-                  child: Text(autoNext
-                      ? 'Next ${index == widget.questions.length - 1 ? "results" : "question"} in $advanceSeconds seconds'
-                      : 'Auto-next paused. Continue when you are ready.')),
-              TextButton(
-                  onPressed: toggleAuto,
-                  child: Text(autoNext ? 'Pause' : 'Auto-next'))
-            ])),
-      const SizedBox(height: 16),
-      QuestButton(
-        onPressed: checked
-            ? next
-            : selected == null
-                ? null
-                : check,
-        label: checked
-            ? index == widget.questions.length - 1
-                ? 'See my results'
-                : 'Next question'
-            : 'Check answer',
-      )
-    ]);
+                                IconButton(
+                                    tooltip: 'Move line up',
+                                    onPressed: checked || position == 0
+                                        ? null
+                                        : () => moveLine(position, -1),
+                                    icon: const Icon(Icons.arrow_upward,
+                                        size: 18)),
+                                IconButton(
+                                    tooltip: 'Move line down',
+                                    onPressed:
+                                        checked || position == order.length - 1
+                                            ? null
+                                            : () => moveLine(position, 1),
+                                    icon: const Icon(Icons.arrow_downward,
+                                        size: 18))
+                              ]))))),
+            ),
+          ],
+          if (q.kind != QuestionKind.order)
+            ...displayedOptions.map((i) {
+              final correct = checked && i == q.answer;
+              final wrong = checked && i == selected && !correct;
+              final active = selected == i;
+              return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Semantics(
+                      selected: active,
+                      button: true,
+                      child: Material(
+                          color: correct
+                              ? const Color(0xFFEAF8D8)
+                              : wrong
+                                  ? const Color(0xFFFFE1DB)
+                                  : active
+                                      ? const Color(0xFFEAF8D8)
+                                      : Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              side: BorderSide(
+                                  color: active || correct
+                                      ? green
+                                      : const Color(0xFFE3E7DE),
+                                  width: active ? 2 : 1)),
+                          child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: checked
+                                  ? null
+                                  : () {
+                                      SoundEffects.instance.play(SoundCue.tap);
+                                      setState(() => selected = i);
+                                    },
+                              child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(children: [
+                                    Text('',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: green)),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: Text(q.options[i])),
+                                    if (correct)
+                                      const Icon(Icons.check_circle,
+                                          color: green),
+                                    if (wrong)
+                                      const Icon(Icons.cancel_outlined,
+                                          color: Colors.red)
+                                  ]))))));
+            }),
+          if (checked)
+            QuestEntrance(
+                key: ValueKey(index),
+                shake: !timedOut && selected != q.answer,
+                child: AnswerExplanation(
+                    question: q,
+                    selected: selected,
+                    order: order,
+                    timedOut: timedOut)),
+          if (checked)
+            Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(children: [
+                  Expanded(
+                      child: Text(autoNext
+                          ? 'Next ${index == widget.questions.length - 1 ? "results" : "question"} in $advanceSeconds seconds'
+                          : 'Auto-next paused. Continue when you are ready.')),
+                  TextButton(
+                      onPressed: toggleAuto,
+                      child: Text(autoNext ? 'Pause' : 'Auto-next'))
+                ])),
+          const SizedBox(height: 16),
+          QuestButton(
+            onPressed: checked
+                ? next
+                : selected == null
+                    ? null
+                    : check,
+            label: checked
+                ? index == widget.questions.length - 1
+                    ? 'See my results'
+                    : 'Next question'
+                : 'Check answer',
+          )
+        ]);
   }
 
   Widget result() => QuestCelebration(
@@ -1363,8 +1984,11 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
         const SizedBox(height: 28),
         Center(
             child: QuestEntrance(
-                child: QuestBuddy(
-                    avatar: widget.avatar, celebrate: true, size: 130))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+          QuestBuddy(avatar: widget.avatar, celebrate: true, size: 112),
+          const SizedBox(width: 12),
+          const QuestLottie(animation: QuestAnimation.celebrate, size: 92)
+        ]))),
         const SizedBox(height: 28),
         Text(
             score >= (widget.dailyChallenge ? 3 : 2)
@@ -1373,21 +1997,59 @@ class _QuizPageState extends State<QuizPage> with WidgetsBindingObserver {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineLarge),
         const SizedBox(height: 16),
-        Text('$score / ${widget.questions.length}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 52, fontWeight: FontWeight.w900, color: green)),
+        Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+                color: const Color(0xFF173D38),
+                borderRadius: BorderRadius.circular(26)),
+            child: Column(children: [
+              Center(
+                  child: AchievementBadge(
+                      title: score == widget.questions.length
+                          ? 'Perfect Landing'
+                          : 'First Spark',
+                      color: const Color(0xFFFFC94F),
+                      unlocked: true)),
+              const SizedBox(height: 12),
+              const Text('QUEST COMPLETE',
+                  style: TextStyle(
+                      color: Color(0xFFB5D5C3),
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text('$score / ${widget.questions.length}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white)),
+              const Text('correct answers',
+                  style: TextStyle(color: Color(0xFFB5D5C3), fontSize: 12)),
+            ])),
         const SizedBox(height: 8),
+        if (widget.xpPreview != null)
+          QuestEntrance(
+              child: Text('+${widget.xpPreview!(answers)} XP to claim',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: green))),
         Text(
-            widget.labMode
-                ? 'Coding lab complete. Your topic mastery and mistakes are updated when you save. Chapter scores and XP stay unchanged.'
-                : widget.practiceMode
-                    ? '$score ${score == 1 ? 'mistake' : 'mistakes'} cleared. ${widget.questions.length - score} still to practice. No chapter scores or XP changed.'
-                    : widget.dailyChallenge
-                        ? 'Daily challenge complete. +30 bonus XP!'
-                        : score >= 2
-                            ? 'Chapter passed! Continue your learning path.'
-                            : 'Review the lesson and try again. You need 2 correct answers to pass.',
+            widget.xpPreview != null
+                ? 'Save to claim XP for new correct answers. Repeats build mastery.'
+                : widget.reviewMode
+                    ? 'Review complete. Save to update your mastery, mistakes and next review date. No extra XP is awarded.'
+                    : widget.labMode
+                        ? 'Coding lab complete. Your topic mastery and mistakes are updated when you save. Chapter scores and XP stay unchanged.'
+                        : widget.practiceMode
+                            ? '$score ${score == 1 ? 'mistake' : 'mistakes'} cleared. ${widget.questions.length - score} still to practice. No chapter scores or XP changed.'
+                            : widget.dailyChallenge
+                                ? 'Daily challenge complete. +30 bonus XP!'
+                                : score >= 2
+                                    ? 'Chapter passed! Continue your learning path.'
+                                    : 'Review the lesson and try again. You need 2 correct answers to pass.',
             textAlign: TextAlign.center),
         const SizedBox(height: 32),
         FilledButton(onPressed: exit, child: const Text('Save & continue')),
