@@ -239,3 +239,13 @@ Profile → App Settings → Account & cloud backup now has a full-width Logout 
 LearnCodz bundles three unmodified Animated Noto Emoji Lottie files by Google (CC BY 4.0): fire for the web-only daily streak popup, a growing seedling while refreshing, and a party popper for saved achievements, quiz results and completed coding missions. The Lottie player is pinned to 3.2.0 for Flutter 3.27 compatibility. Artwork plays from local assets, at 30 fps, with static symbols when reduced motion is enabled. Refresh loops are mounted only while refreshing; celebrations play once.
 
 Replay the effects in Profile → App Settings → Animation credits → Preview animations. Attribution, source URLs, downloaded file hashes and the full license are stored in assets/animations. Open-source licenses are accessible from the same Settings section.
+
+## Copyright
+
+Copyright (c) 2026 **Zulkifal Khan and Jamal Akbar Khan**. All rights reserved.
+
+See [COPYRIGHT](COPYRIGHT) for the notice covering original LearnCodz materials.
+No open-source license is granted for those materials. Third-party assets and
+dependencies retain their own licenses and notices, including the
+[Animated Noto Emoji attribution](assets/animations/NOTICE.txt) and
+[Google branding source](assets/branding/SOURCE.txt).

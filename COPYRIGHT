@@ -1,0 +1,23 @@
+LearnCodz
+Copyright (c) 2026 Zulkifal Khan and Jamal Akbar Khan.
+All rights reserved.
+
+This notice applies to the original LearnCodz source code, documentation,
+and artwork created by the project authors. No permission to use, copy,
+modify, distribute, sublicense, or sell those materials is granted by this
+notice. Contact the copyright holders for permission.
+
+Third-party materials remain subject to their respective licenses and
+ownership notices. This notice does not replace or restrict rights granted
+under those licenses. In particular:
+
+- Animated Noto Emoji assets: Copyright Google LLC; CC BY 4.0.
+  See assets/animations/NOTICE.txt and assets/animations/CC-BY-4.0.txt.
+- Google sign-in branding: owned by Google LLC.
+  See assets/branding/SOURCE.txt for its source and usage guidance.
+- Flutter, Dart, packages, and other dependencies retain their respective
+  licenses. The dependency declarations are in pubspec.yaml and pubspec.lock.
+
+Public availability of this repository does not grant an open-source license
+to the original LearnCodz materials. Platform-provided rights remain subject
+to the applicable platform terms.
