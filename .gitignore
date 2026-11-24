@@ -58,3 +58,8 @@ app.*.map.json
 !.env.example
 # Downloaded Google OAuth client secrets
 client_secret_*.json
+
+# Release debugging maps stay private
+/release-symbols/
+*.symbols
+*obfuscation-map*.json

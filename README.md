@@ -96,7 +96,7 @@ Profile > Sounds & feedback provides an on/off switch, saved volume slider and p
 
 The updated Android APK is LearnCodz-v1.0.1.apk, version code 2, with the same package ID and test signing key as v1.0.0. Installing it as an update preserves app data. There are 26 passing tests, including mute/volume persistence, silent volume, nonfatal audio errors and background suppression.
 
-## Expanded roadmap and Code Playground — version 1.0.2 (3)
+## Expanded roadmap and Code Playground â€” version 1.0.2 (3)
 
 Each of C++, Python, Java and C now has 18 chapters in three stages: Foundations, Working with Data and Problem Solving. The original six chapter IDs and questions remain unchanged; twelve chapters are appended per language. The app now includes 72 lessons, 432 Easy/Difficult question variants and 32 existing coding-lab exercises. New topics: input, operators, strings, while/nested loops, debugging, search, sorting, recursion, structured records, files and a grade-tracker mini-project. Daily challenges draw from unlocked chapters.
 
@@ -210,17 +210,17 @@ Answer feedback compares the selected answer with the correct answer or code ord
 
 ## Navigation cleanup
 
-Daily Challenge has one entry under Overview → Daily Goal. Practice contains Smart Review, Quiz Arcade, Code Playground and focused coding activities. The learning toolkit contains goals, bookmarks, mastery and reminder controls; its duplicate coding-lab launcher was removed.
+Daily Challenge has one entry under Overview â†’ Daily Goal. Practice contains Smart Review, Quiz Arcade, Code Playground and focused coding activities. The learning toolkit contains goals, bookmarks, mastery and reminder controls; its duplicate coding-lab launcher was removed.
 
-Profile → Edit Profile changes personal details and the learning buddy. Profile → App Settings manages the existing account/backup controls, sound preferences, reminder access and Reset my progress. Reset is no longer on Progress. Reset still requires confirmation and clears learning progress while keeping profile details.
+Profile â†’ Edit Profile changes personal details and the learning buddy. Profile â†’ App Settings manages the existing account/backup controls, sound preferences, reminder access and Reset my progress. Reset is no longer on Progress. Reset still requires confirmation and clears learning progress while keeping profile details.
 
 ## Guided coding missions and lesson sandbox
 
-Practice → Coding Missions offers three beginner missions in each of C++, Python, Java and C: doubling a number, a pass-score checker, and an even/odd detector. Each mission has a three-step brief, expandable hints and three executable test cases. Check all test cases sends the current code and each test input to the existing online compiler. Completion is recorded only when every response succeeds and the actual output matches the expected output (line endings and outer whitespace are normalized). Editing code clears the displayed test results. Mission completions are practice records, with no extra XP.
+Practice â†’ Coding Missions offers three beginner missions in each of C++, Python, Java and C: doubling a number, a pass-score checker, and an even/odd detector. Each mission has a three-step brief, expandable hints and three executable test cases. Check all test cases sends the current code and each test input to the existing online compiler. Completion is recorded only when every response succeeds and the actual output matches the expected output (line endings and outer whitespace are normalized). Editing code clears the displayed test results. Mission completions are practice records, with no extra XP.
 
-Learning Room → Try this code opens the lesson example in a separate sandbox draft; regular Playground work is preserved. Function and recursion examples include a demonstration entry point for C, C++ and Java. Mission and lesson drafts, mission completions, and seen achievement notifications participate in the existing progress backup. There is no database schema change.
+Learning Room â†’ Try this code opens the lesson example in a separate sandbox draft; regular Playground work is preserved. Function and recursion examples include a demonstration entry point for C, C++ and Java. Mission and lesson drafts, mission completions, and seen achievement notifications participate in the existing progress backup. There is no database schema change.
 
-Compiler failures include a rule-based explanation alongside raw diagnostics. Highlight line is offered only when a line can be mapped to the user's source; hints are suggestions, not guaranteed fixes. New achievement notifications are animated, nonblocking and deduplicated for saved milestones. Developer credits appear only in App Settings → About developers.
+Compiler failures include a rule-based explanation alongside raw diagnostics. Highlight line is offered only when a line can be mapped to the user's source; hints are suggestions, not guaranteed fixes. New achievement notifications are animated, nonblocking and deduplicated for saved milestones. Developer credits appear only in App Settings â†’ About developers.
 
 ## Focused screens
 
@@ -232,13 +232,13 @@ The five main tabs use a curved bottom bar with a raised active icon in LearnCod
 
 Pull down on the main screens to reveal the learning buddy and refresh header. Short pages can also be pulled. Overview and Profile offer a Refresh progress button for mouse and keyboard users. Refresh saves local study settings and asks the existing backup service to sync when signed in. Cloud conflicts or unavailable service are reported without replacing local progress.
 
-Profile → App Settings → Account & cloud backup now has a full-width Logout button. It retains the existing confirmation and account-specific sign-out behavior. This source update does not rebuild or replace the APK.
+Profile â†’ App Settings â†’ Account & cloud backup now has a full-width Logout button. It retains the existing confirmation and account-specific sign-out behavior. This source update does not rebuild or replace the APK.
 
 ## Offline Lottie animations
 
 LearnCodz bundles three unmodified Animated Noto Emoji Lottie files by Google (CC BY 4.0): fire for the web-only daily streak popup, a growing seedling while refreshing, and a party popper for saved achievements, quiz results and completed coding missions. The Lottie player is pinned to 3.2.0 for Flutter 3.27 compatibility. Artwork plays from local assets, at 30 fps, with static symbols when reduced motion is enabled. Refresh loops are mounted only while refreshing; celebrations play once.
 
-Replay the effects in Profile → App Settings → Animation credits → Preview animations. Attribution, source URLs, downloaded file hashes and the full license are stored in assets/animations. Open-source licenses are accessible from the same Settings section.
+Replay the effects in Profile â†’ App Settings â†’ Animation credits â†’ Preview animations. Attribution, source URLs, downloaded file hashes and the full license are stored in assets/animations. Open-source licenses are accessible from the same Settings section.
 
 ## Copyright
 
@@ -249,3 +249,15 @@ No open-source license is granted for those materials. Third-party assets and
 dependencies retain their own licenses and notices, including the
 [Animated Noto Emoji attribution](assets/animations/NOTICE.txt) and
 [Google branding source](assets/branding/SOURCE.txt).
+
+## Release code protection
+
+The Android build script enables Dart symbol obfuscation and keeps per-build debug
+symbols under the ignored `work/release-symbols/` directory on D:. Preserve these
+files privately for diagnosing crashes. Android release optimization remains enabled.
+These settings apply to future builds made through `build-apk.ps1`; the previously
+built 1.0.11 APK has not been regenerated with them.
+
+Obfuscation makes compiled symbols harder to interpret. It does not encrypt assets,
+hide this public repository, or prevent someone from recreating visible screens.
+The copyright notice states the ownership and permissions for original materials.
